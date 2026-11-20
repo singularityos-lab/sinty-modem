@@ -94,7 +94,7 @@ func fail(name string, err error) *dbus.Error {
 
 func Export(conn *dbus.Conn, backend phone.Backend) (*Exporter, error) {
 	e := &Exporter{
-		b:       NewBus(conn, Root),
+		b:       NewBus(conn, Root, PolkitAuthorizer(conn)),
 		backend: backend,
 		calls:   map[dbus.ObjectPath]*callObj{},
 		byCall:  map[string]*callObj{},

@@ -28,10 +28,11 @@ type Bus struct {
 
 	mu      sync.Mutex
 	objects map[dbus.ObjectPath]*object
+	auth    Authorizer
 }
 
-func NewBus(conn *dbus.Conn, root dbus.ObjectPath) *Bus {
-	b := &Bus{conn: conn, root: root, objects: map[dbus.ObjectPath]*object{}}
+func NewBus(conn *dbus.Conn, root dbus.ObjectPath, auth Authorizer) *Bus {
+	b := &Bus{conn: conn, root: root, objects: map[dbus.ObjectPath]*object{}, auth: auth}
 	conn.ExportMethodTable(map[string]interface{}{
 		"GetManagedObjects": b.getManagedObjects,
 	}, root, omIface)
@@ -111,7 +112,7 @@ func (b *Bus) Add(path dbus.ObjectPath, ifaces map[string]props, methods map[str
 	snap := o.snapshot()
 	b.mu.Unlock()
 	for iface, table := range methods {
-		b.conn.ExportMethodTable(table, path, iface)
+		b.conn.ExportMethodTable(b.guarded(iface, table), path, iface)
 	}
 	h := propsHandler{b: b, path: path}
 	b.conn.ExportMethodTable(map[string]interface{}{"Get": h.Get, "GetAll": h.GetAll, "Set": h.Set}, path, propsIface)
@@ -119,6 +120,20 @@ func (b *Bus) Add(path dbus.ObjectPath, ifaces map[string]props, methods map[str
 	if path != b.root {
 		b.conn.Emit(b.root, omIface+".InterfacesAdded", path, snap)
 	}
+}
+
+func (b *Bus) guarded(iface string, table map[string]interface{}) map[string]interface{} {
+	if b.auth == nil {
+		return table
+	}
+	out := make(map[string]interface{}, len(table))
+	for name, method := range table {
+		if action := actionFor(iface, name); action != "" {
+			method = guard(method, action, b.auth)
+		}
+		out[name] = method
+	}
+	return out
 }
 
 func (b *Bus) Remove(path dbus.ObjectPath) {
