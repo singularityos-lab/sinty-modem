@@ -1,0 +1,4 @@
+sinty-modem is an independent implementation. The order of the Shannon modem
+bring-up and the layouts of the modem's IPC messages were learned from
+omarchy-mobile (https://github.com/derekross/omarchy-mobile), MIT License,
+Copyright (c) 2026 Derek Ross.
