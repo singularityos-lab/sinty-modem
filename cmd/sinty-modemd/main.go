@@ -155,11 +155,13 @@ func runService() {
 		st, _ := cp.Status()
 		log.Fatalf("sinty-modemd: the modem is %s, not ONLINE", st)
 	}
-	c, err := sit.Open(m.IPC)
+	slots := []ril.Slot{{Name: "sim", Path: m.IPC}, {Name: "esim", Path: m.ESIMIPC}}
+	c, slot, err := ril.PickSlot(context.Background(), slots, sit.Open, 30*time.Second, func(f string, a ...any) { log.Printf("sinty-modemd: "+f, a...) })
 	if err != nil {
-		log.Fatalf("sinty-modemd: %s: %v", m.IPC, err)
+		log.Fatalf("sinty-modemd: %v", err)
 	}
 	defer c.Close()
+	log.Printf("sinty-modemd: using the %s slot on %s", slot.Name, slot.Path)
 	msgs, err := store.Open(filepath.Join(stateDir, "messages"))
 	if err != nil {
 		log.Fatalf("sinty-modemd: %v", err)
