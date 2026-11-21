@@ -176,8 +176,17 @@ func runService() {
 		st, _ := cp.Status()
 		log.Fatalf("sinty-modemd: the modem is %s, not ONLINE", st)
 	}
+	logf := func(f string, a ...any) { log.Printf("sinty-modemd: "+f, a...) }
+	if rc, err := sit.Open(m.IPC); err != nil {
+		logf("slot status: %v", err)
+	} else {
+		if err := ril.MapEUICC(rc, 30*time.Second, logf); err != nil {
+			logf("slot mapping: %v", err)
+		}
+		rc.Close()
+	}
 	slots := []ril.Slot{{Name: "sim", Path: m.IPC}, {Name: "esim", Path: m.ESIMIPC}}
-	c, slot, err := ril.PickSlot(context.Background(), slots, sit.Open, 30*time.Second, func(f string, a ...any) { log.Printf("sinty-modemd: "+f, a...) })
+	c, slot, err := ril.PickSlot(context.Background(), slots, sit.Open, 30*time.Second, logf)
 	if err != nil {
 		log.Fatalf("sinty-modemd: %v", err)
 	}

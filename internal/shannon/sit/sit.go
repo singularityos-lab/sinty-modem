@@ -32,6 +32,8 @@ const (
 	VerifyPUK          = 0x0202
 	SIMIO              = 0x0208
 	IndSIMStatus       = 0x0210
+	GetSlotStatus      = 0x024d
+	SetSlotMapping     = 0x0250
 	GetIMSI            = 0x0400
 	SetupDataCall      = 0x0600
 	DeactDataCall      = 0x0601
@@ -83,7 +85,7 @@ var allowed = map[uint16]bool{
 	SetPSService: true, GetPSService: true, SetNRMode: true, GetNRMode: true, GetRadioPower: true,
 	SetScreenState: true, SetIndFilter: true, Dial: true, Answer: true, Hangup: true, HiddenMenu: true,
 	AddPDNInfo: true, SendDTMF: true, SendSMS: true, IMSSMSAck: true, DelPDNInfo: true, IMSStackStart: true,
-	SIMIO: true,
+	SIMIO: true, GetSlotStatus: true, SetSlotMapping: true,
 }
 
 var ErrRefused = errors.New("request outside the allow-list")
