@@ -51,6 +51,13 @@ func mount(src, dst, fstype string, flags uintptr, data string) error {
 	return nil
 }
 
+func mountNodes(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	return mount("sinty-modem-nodes", dir, "tmpfs", syscall.MS_NOSUID|syscall.MS_NOEXEC, "mode=0700,size=64k")
+}
+
 func bind(src, dst string, ro bool) error {
 	st, err := os.Stat(src)
 	if err != nil {
@@ -142,6 +149,9 @@ func (s *Stack) Setup() error {
 		return err
 	}
 	nodes := filepath.Join(s.Run, "nodes")
+	if err := mountNodes(nodes); err != nil {
+		return err
+	}
 	img := filepath.Join(s.Run, "img")
 
 	super, err := FindPartition("super")
