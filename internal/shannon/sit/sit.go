@@ -163,6 +163,13 @@ func (c *Client) Done() <-chan struct{} { return c.done }
 
 func (c *Client) Close() error { return c.rw.Close() }
 
+// Err is why the channel closed, or nil while it is open.
+func (c *Client) Err() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.err
+}
+
 func (c *Client) fail(err error) {
 	c.mu.Lock()
 	if c.err == nil {

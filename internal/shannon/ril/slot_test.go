@@ -25,6 +25,13 @@ func simStatusPayload(card byte, apps int) []byte {
 
 func fakeChannel(t *testing.T, card byte, apps int) string {
 	t.Helper()
+	return settlingChannel(t, card, apps, 0)
+}
+
+// settlingChannel closes its first drops connections at once, the way the
+// modem drops a channel opened while it is still settling.
+func settlingChannel(t *testing.T, card byte, apps int, drops int) string {
+	t.Helper()
 	path := filepath.Join(t.TempDir(), "ipc")
 	l, err := net.Listen("unixpacket", path)
 	if err != nil {
@@ -36,6 +43,11 @@ func fakeChannel(t *testing.T, card byte, apps int) string {
 			conn, err := l.Accept()
 			if err != nil {
 				return
+			}
+			if drops > 0 {
+				drops--
+				conn.Close()
+				continue
 			}
 			go func(conn net.Conn) {
 				defer conn.Close()
@@ -118,5 +130,25 @@ func TestMissingESIMChannelIsIgnored(t *testing.T) {
 	})
 	if s.Name != "sim" {
 		t.Fatalf("picked %s", s.Name)
+	}
+}
+
+func TestAChannelClosedWhileSettlingIsOpenedAgain(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c, s, err := PickSlot(ctx, []Slot{
+		{Name: "sim", Path: fakeChannel(t, CardAbsent, 0)},
+		{Name: "esim", Path: settlingChannel(t, CardPresent, 1, 2)},
+	}, sit.Open, 5*time.Second, t.Logf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if s.Name != "esim" {
+		t.Fatalf("picked %s, want the eSIM once its channel settles", s.Name)
+	}
+	st, err := New(c, "").SIMStatus()
+	if err != nil || !st.USIMReady() {
+		t.Fatalf("the returned channel is not usable: %+v %v", st, err)
 	}
 }
