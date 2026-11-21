@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -53,6 +54,21 @@ func notify(state string) {
 	c.Write([]byte(state))
 }
 
+type kmsgWriter struct{ f *os.File }
+
+func (k kmsgWriter) Write(p []byte) (int, error) {
+	k.f.Write(append([]byte("<3>sinty-modem-stack: "), p...))
+	return len(p), nil
+}
+
+func keepLog() {
+	f, err := os.OpenFile("/dev/kmsg", os.O_WRONLY, 0)
+	if err != nil {
+		return
+	}
+	log.SetOutput(io.MultiWriter(os.Stderr, kmsgWriter{f}))
+}
+
 func modem() *device.Modem {
 	m, err := device.FindModem()
 	if err != nil {
@@ -66,7 +82,11 @@ func modem() *device.Modem {
 
 func runStack() {
 	m := modem()
-	latch := vendor.Latch{Path: filepath.Join(stateDir, "bringup-attempts")}
+	keepLog()
+	latch := vendor.Latch{
+		Path:  filepath.Join(stateDir, "bringup-attempts"),
+		Build: vendor.OSBuild("/etc/os-release", "/usr/lib/os-release"),
+	}
 	if n := latch.Attempts(); n >= maxAttempts {
 		log.Fatalf("stack: %d bring-up attempts did not reach ONLINE; remove %s to try again", n, latch.Path)
 	}
@@ -112,6 +132,7 @@ func runStack() {
 }
 
 func runStackNS() {
+	keepLog()
 	m := modem()
 	if err := syscall.Mount("", "/", "", syscall.MS_REC|syscall.MS_PRIVATE, ""); err != nil {
 		log.Fatalf("stack: private mount namespace: %v", err)

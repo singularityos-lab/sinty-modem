@@ -60,14 +60,28 @@ func LoadModules(link, rest [][]string, aspm string) error {
 	return fmt.Errorf("the modem ports did not appear after loading the drivers")
 }
 
-type Latch struct{ Path string }
+type Latch struct {
+	Path  string
+	Build string
+}
 
 func (l Latch) Attempts() int {
 	b, err := os.ReadFile(l.Path)
 	if err != nil {
 		return 0
 	}
-	n, _ := strconv.Atoi(strings.Fields(string(b) + " 0")[0])
+	fields := strings.Fields(string(b))
+	if len(fields) == 0 {
+		return 0
+	}
+	build := ""
+	if len(fields) >= 3 {
+		build = fields[2]
+	}
+	if build != l.Build {
+		return 0
+	}
+	n, _ := strconv.Atoi(fields[0])
 	return n
 }
 
@@ -80,7 +94,11 @@ func (l Latch) Arm() (int, error) {
 	if err != nil {
 		return n, err
 	}
-	fmt.Fprintf(f, "%d %s\n", n, time.Now().Format(time.RFC3339))
+	line := fmt.Sprintf("%d %s", n, time.Now().Format(time.RFC3339))
+	if l.Build != "" {
+		line += " " + l.Build
+	}
+	fmt.Fprintln(f, line)
 	err = f.Sync()
 	f.Close()
 	return n, err
@@ -92,4 +110,19 @@ func (l Latch) Clear() error {
 		return nil
 	}
 	return err
+}
+
+func OSBuild(paths ...string) string {
+	for _, p := range paths {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(b), "\n") {
+			if v, ok := strings.CutPrefix(line, "BUILD_ID="); ok {
+				return strings.Trim(strings.TrimSpace(v), "\"'")
+			}
+		}
+	}
+	return ""
 }
