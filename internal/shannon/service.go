@@ -1067,8 +1067,17 @@ func (s *Service) DeleteMessage(id string) error {
 	return nil
 }
 
+func (s *Service) SendPUK(puk, pin string) (int, error) {
+	left, err := s.ril.VerifyPUK(puk, pin)
+	return s.unlocked(left, err)
+}
+
 func (s *Service) SendPIN(pin string) (int, error) {
 	left, err := s.ril.VerifyPIN(pin)
+	return s.unlocked(left, err)
+}
+
+func (s *Service) unlocked(left int, err error) (int, error) {
 	if st, serr := s.ril.SIMStatus(); serr == nil {
 		s.applySIM(st)
 	}

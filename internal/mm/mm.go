@@ -395,8 +395,13 @@ func (e *Exporter) addSim() {
 				}
 				return nil
 			},
-			"SendPuk": func(string, string) *dbus.Error {
-				return fail("Unsupported", errors.New("enter the PUK in another phone"))
+			"SendPuk": func(puk, pin string) *dbus.Error {
+				if _, err := b.SendPUK(puk, pin); errors.Is(err, phone.ErrWrongPUK) {
+					return &dbus.Error{Name: "org.freedesktop.ModemManager1.Error.MobileEquipment.IncorrectPassword", Body: []interface{}{err.Error()}}
+				} else if err != nil {
+					return fail("Failed", err)
+				}
+				return nil
 			},
 			"EnablePin": func(string, bool) *dbus.Error { return fail("Unsupported", errors.New("not supported yet")) },
 			"ChangePin": func(string, string) *dbus.Error { return fail("Unsupported", errors.New("not supported yet")) },

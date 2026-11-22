@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/singularityos-lab/sinty-modem/internal/phone"
 	"github.com/singularityos-lab/sinty-modem/internal/shannon/sit"
 )
 
@@ -166,6 +168,43 @@ func pinPayload(code string, aid []byte) ([]byte, error) {
 	p[9] = byte(len(aid))
 	copy(p[10:], aid)
 	return p, nil
+}
+
+func pukPayload(puk, pin string, aid []byte) ([]byte, error) {
+	if len(puk) != 8 || strings.Trim(puk, "0123456789") != "" {
+		return nil, errors.New("a PUK has 8 digits")
+	}
+	next, err := pinPayload(pin, aid)
+	if err != nil {
+		return nil, err
+	}
+	p := append([]byte{byte(len(puk))}, puk...)
+	return append(p, next...), nil
+}
+
+func (r *RIL) VerifyPUK(puk, pin string) (int, error) {
+	st, err := r.SIMStatus()
+	if err != nil {
+		return 0, err
+	}
+	app := st.Main()
+	if app == nil || appStates[app.State] != SIMPUK {
+		return 0, errors.New("the SIM is not waiting for its PUK")
+	}
+	p, err := pukPayload(puk, pin, app.AID)
+	if err != nil {
+		return app.PUKRetries, err
+	}
+	_, err = r.c.Request(sit.VerifyPUK, p, 20*time.Second)
+	left := app.PUKRetries
+	if after, serr := r.SIMStatus(); serr == nil && after.Main() != nil {
+		left = after.Main().PUKRetries
+	}
+	var me *sit.ModemError
+	if errors.As(err, &me) {
+		return left, fmt.Errorf("%w (%d tries left)", phone.ErrWrongPUK, left)
+	}
+	return left, err
 }
 
 func (r *RIL) VerifyPIN(code string) (int, error) {

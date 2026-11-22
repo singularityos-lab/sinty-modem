@@ -102,6 +102,7 @@ var (
 	ErrNoCall   = errors.New("this call is no longer available")
 	ErrBusy     = errors.New("end the current call before placing another")
 	ErrBadAPN   = errors.New("this is not a valid access point name")
+	ErrWrongPUK = errors.New("wrong PUK")
 )
 
 type Backend interface {
@@ -116,6 +117,7 @@ type Backend interface {
 	SendMessage(number, text string) (Message, error)
 	DeleteMessage(id string) error
 	SendPIN(pin string) (int, error)
+	SendPUK(puk, pin string) (int, error)
 	SetRadio(on bool) error
 	SelectSlot(slot int) error
 	Restart() error
