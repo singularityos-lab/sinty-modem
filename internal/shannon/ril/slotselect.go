@@ -10,6 +10,8 @@ import (
 
 const switchableSlots = 2
 
+const MappingTimeout = 30 * time.Second
+
 func SelectSlot(c *sit.Client, slot int, timeout time.Duration) error {
 	if slot < 0 || slot >= switchableSlots {
 		return fmt.Errorf("no physical slot %d", slot)

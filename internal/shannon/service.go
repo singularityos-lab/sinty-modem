@@ -310,7 +310,7 @@ func (s *Service) remap(table []byte) {
 		if table != nil {
 			return
 		}
-		if err := ril.SelectSlot(s.ril.Client(), slot, 8*time.Second); err != nil {
+		if err := ril.SelectSlot(s.ril.Client(), slot, ril.MappingTimeout); err != nil {
 			logf("saved slot %d: %v", slot, err)
 		}
 		return
@@ -1140,7 +1140,7 @@ func (s *Service) SelectSlot(slot int) error {
 	if err := s.idle(); err != nil {
 		return err
 	}
-	if err := ril.SelectSlot(s.ril.Client(), slot, 8*time.Second); err != nil {
+	if err := ril.SelectSlot(s.ril.Client(), slot, ril.MappingTimeout); err != nil {
 		return fmt.Errorf("select slot %d: %w", slot, err)
 	}
 	log.Printf("modem: physical slot %d put on the first line", slot)

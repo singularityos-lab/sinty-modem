@@ -11,7 +11,7 @@ import (
 	"github.com/singularityos-lab/sinty-modem/internal/shannon/sit"
 )
 
-func enumeratingModem(t *testing.T, pending int) (string, *atomic.Bool) {
+func enumeratingModem(t *testing.T, pending int, settle time.Duration) (string, *atomic.Bool) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "ipc")
 	l, err := net.Listen("unixpacket", path)
@@ -42,6 +42,7 @@ func enumeratingModem(t *testing.T, pending int) (string, *atomic.Bool) {
 					body = make([]byte, len(body))
 				}
 			case sit.SetSlotMapping:
+				time.Sleep(settle)
 				mapped.Store(true)
 			case sit.SIMStatus:
 				body = simStatusPayload(CardAbsent, 0)
@@ -62,7 +63,22 @@ func enumeratingModem(t *testing.T, pending int) (string, *atomic.Bool) {
 }
 
 func TestMappingWaitsForTheModemToListItsSlots(t *testing.T) {
-	path, mapped := enumeratingModem(t, 2)
+	path, mapped := enumeratingModem(t, 2, 0)
+	c, err := sit.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if err := MapEUICC(c, 10*time.Second, t.Logf); err != nil {
+		t.Fatal(err)
+	}
+	if !mapped.Load() {
+		t.Fatal("the eUICC was never mapped")
+	}
+}
+
+func TestMappingWaitsForASlowModem(t *testing.T) {
+	path, mapped := enumeratingModem(t, 0, 9*time.Second)
 	c, err := sit.Open(path)
 	if err != nil {
 		t.Fatal(err)

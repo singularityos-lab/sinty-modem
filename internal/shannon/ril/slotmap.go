@@ -156,7 +156,7 @@ func mapSlots(c *sit.Client, st SlotStatus, logf func(string, ...any)) (bool, er
 		logf("logical slots left as they are")
 		return false, nil
 	}
-	if _, err := c.Request(sit.SetSlotMapping, mappingPayload(st.Ports, mapping), 8*time.Second); err != nil {
+	if _, err := c.Request(sit.SetSlotMapping, mappingPayload(st.Ports, mapping), MappingTimeout); err != nil {
 		return false, err
 	}
 	logf("logical slots mapped to physical %v", mapping)

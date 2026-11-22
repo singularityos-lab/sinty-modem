@@ -189,7 +189,7 @@ func runService() {
 	} else {
 		slot, chosen := shannon.SavedSlot(slotFile)
 		if chosen {
-			if err := ril.SelectSlot(rc, slot, 8*time.Second); err != nil {
+			if err := ril.SelectSlot(rc, slot, ril.MappingTimeout); err != nil {
 				logf("saved slot %d: %v", slot, err)
 				chosen = false
 			}
