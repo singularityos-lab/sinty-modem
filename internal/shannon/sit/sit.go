@@ -10,8 +10,9 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"github.com/singularityos-lab/sinty-modem/internal/shannon/cpif"
 )
 
 const (
@@ -133,7 +134,7 @@ func Open(path string) (*Client, error) {
 		}
 		rw = c
 	} else {
-		f, err := os.OpenFile(path, os.O_RDWR|syscall.O_CLOEXEC, 0)
+		f, err := cpif.Open(path)
 		if err != nil {
 			return nil, err
 		}

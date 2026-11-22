@@ -5,8 +5,9 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"syscall"
 	"time"
+
+	"github.com/singularityos-lab/sinty-modem/internal/shannon/cpif"
 )
 
 var (
@@ -16,7 +17,7 @@ var (
 )
 
 func atExchange(path, command string, timeout time.Duration) (string, error) {
-	f, err := os.OpenFile(path, os.O_RDWR|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
+	f, err := cpif.Open(path)
 	if err != nil {
 		return "", err
 	}
@@ -42,10 +43,6 @@ func atExchange(path, command string, timeout time.Duration) (string, error) {
 		if err != nil {
 			if errors.Is(err, os.ErrDeadlineExceeded) {
 				break
-			}
-			if errors.Is(err, syscall.EAGAIN) {
-				time.Sleep(50 * time.Millisecond)
-				continue
 			}
 			return string(resp), err
 		}

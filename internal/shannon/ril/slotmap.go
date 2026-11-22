@@ -11,109 +11,153 @@ import (
 const (
 	legacySlotRecord = 65
 	slotRecord       = 105
+	portRecord       = 13
+	maxSlots         = 4
 	unmapped         = 0xff
 )
 
 type PhysicalSlot struct {
-	Card    byte
-	EUICC   bool
-	Logical int
+	Card  byte
+	EUICC bool
+	Lines []int
 }
 
-func ParseSlotStatus(p []byte) ([]PhysicalSlot, error) {
-	if len(p) < 1 || p[0] == 0 || p[0] > 4 {
-		return nil, errors.New("unexpected slot status layout")
+type SlotStatus struct {
+	Ports bool
+	Slots []PhysicalSlot
+}
+
+type SlotPort struct {
+	Slot int
+	Port int
+}
+
+func ParseSlotStatus(p []byte) (SlotStatus, error) {
+	if len(p) < 1+maxSlots*legacySlotRecord || p[0] == 0 || p[0] > maxSlots {
+		return SlotStatus{}, errors.New("unexpected slot status layout")
 	}
-	n := int(p[0])
 	body := p[1:]
+	st := SlotStatus{Ports: len(body) >= maxSlots*slotRecord, Slots: make([]PhysicalSlot, p[0])}
 	size := legacySlotRecord
-	if len(body) >= 4*slotRecord {
+	if st.Ports {
 		size = slotRecord
 	}
-	if len(body) < n*size {
-		return nil, errors.New("unexpected slot status layout")
-	}
-	slots := make([]PhysicalSlot, n)
-	for i := range slots {
+	for i := range st.Slots {
 		r := body[i*size : (i+1)*size]
-		s := PhysicalSlot{Card: r[0], Logical: -1}
-		var logical byte
-		if size == slotRecord {
+		s := PhysicalSlot{Card: r[0]}
+		var lines []byte
+		if st.Ports {
 			s.EUICC = r[0x23] > 0
-			logical = unmapped
-			if r[0x34] > 0 {
-				logical = r[0x36]
+			ports := int(r[0x34])
+			if ports > maxSlots {
+				return SlotStatus{}, errors.New("unexpected slot port count")
+			}
+			for j := range ports {
+				lines = append(lines, r[0x40+j*portRecord])
 			}
 		} else {
 			s.EUICC = r[0x30] > 0
-			logical = r[0x24]
+			lines = []byte{r[0x24]}
 		}
-		if logical != unmapped {
-			s.Logical = int(logical)
+		for _, l := range lines {
+			switch {
+			case l == unmapped:
+				s.Lines = append(s.Lines, -1)
+			case l < maxSlots:
+				s.Lines = append(s.Lines, int(l))
+			default:
+				return SlotStatus{}, errors.New("unexpected logical slot")
+			}
 		}
-		slots[i] = s
+		st.Slots[i] = s
 	}
-	return slots, nil
+	return st, nil
 }
 
-func EUICCMapping(slots []PhysicalSlot) ([]byte, bool) {
+func EUICCMapping(st SlotStatus) ([]SlotPort, bool) {
 	euicc := -1
-	logicals := 0
-	for i, s := range slots {
+	current := map[int]SlotPort{}
+	for i, s := range st.Slots {
 		if s.EUICC && euicc < 0 {
 			euicc = i
 		}
-		if s.Logical >= 0 {
-			logicals++
+		for j, l := range s.Lines {
+			if l < 0 {
+				continue
+			}
+			if _, taken := current[l]; taken {
+				return nil, false
+			}
+			current[l] = SlotPort{Slot: i, Port: j}
 		}
 	}
-	if euicc < 0 || slots[euicc].Card != CardPresent || slots[euicc].Logical == 0 {
+	if euicc < 0 || st.Slots[euicc].Card != CardPresent || len(st.Slots[euicc].Lines) == 0 {
 		return nil, false
 	}
-	for i, s := range slots {
-		if i != euicc && s.Logical == 0 && s.Card == CardPresent {
+	mapping := make([]SlotPort, len(current))
+	for l := range mapping {
+		sp, ok := current[l]
+		if !ok {
 			return nil, false
 		}
+		mapping[l] = sp
 	}
-	if logicals == 0 {
-		logicals = 1
+	if len(mapping) == 0 || mapping[0].Slot == euicc || st.Slots[mapping[0].Slot].Card != CardAbsent {
+		return nil, false
 	}
-	mapping := []byte{byte(euicc)}
-	for i := range slots {
-		if len(mapping) == logicals {
-			break
-		}
-		if i != euicc {
-			mapping = append(mapping, byte(i))
-		}
+	if l := st.Slots[euicc].Lines[0]; l > 0 {
+		mapping[l] = mapping[0]
 	}
+	mapping[0] = SlotPort{Slot: euicc}
 	return mapping, true
 }
 
+func mappingPayload(ports bool, mapping []SlotPort) []byte {
+	width := 1
+	if ports {
+		width = 2
+	}
+	p := make([]byte, 1+maxSlots*width)
+	p[0] = byte(len(mapping))
+	for l, m := range mapping {
+		p[1+l*width] = byte(m.Slot)
+		if ports {
+			p[2+l*width] = byte(m.Port)
+		}
+	}
+	return p
+}
+
 func MapEUICC(c *sit.Client, wait time.Duration, logf func(string, ...any)) error {
-	p, err := c.Request(sit.GetSlotStatus, nil, 8*time.Second)
+	var p []byte
+	deadline := time.Now().Add(wait)
+	for {
+		var err error
+		if p, err = c.Request(sit.GetSlotStatus, nil, 8*time.Second); err == nil {
+			break
+		}
+		if c.Err() != nil || time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(time.Second)
+	}
+	st, err := ParseSlotStatus(p)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w (%d bytes)", err, len(p))
 	}
-	slots, err := ParseSlotStatus(p)
-	if err != nil {
-		return fmt.Errorf("%w: % x", err, p)
+	for i, s := range st.Slots {
+		logf("physical slot %d: card %d, euicc %t, lines %v", i, s.Card, s.EUICC, s.Lines)
 	}
-	for i, s := range slots {
-		logf("physical slot %d: card %d, euicc %t, logical %d", i, s.Card, s.EUICC, s.Logical)
-	}
-	mapping, ok := EUICCMapping(slots)
+	mapping, ok := EUICCMapping(st)
 	if !ok {
+		logf("logical slots left as they are")
 		return nil
 	}
-	payload := make([]byte, 5)
-	payload[0] = byte(len(mapping))
-	copy(payload[1:], mapping)
-	if _, err := c.Request(sit.SetSlotMapping, payload, 8*time.Second); err != nil {
+	if _, err := c.Request(sit.SetSlotMapping, mappingPayload(st.Ports, mapping), 8*time.Second); err != nil {
 		return err
 	}
-	logf("logical slots mapped to physical % d", mapping)
-	deadline := time.Now().Add(wait)
+	logf("logical slots mapped to physical %v", mapping)
+	deadline = time.Now().Add(wait)
 	for time.Now().Before(deadline) {
 		if p, err := c.Request(sit.SIMStatus, nil, 8*time.Second); err == nil {
 			if st, err := ParseSIMStatus(p); err == nil && st.Card == CardPresent {

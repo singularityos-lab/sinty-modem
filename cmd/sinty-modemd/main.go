@@ -238,6 +238,7 @@ func runService() {
 	if errors.Is(ctx.Err(), context.Canceled) {
 		select {
 		case <-c.Done():
+			log.Printf("sinty-modemd: stopping, the modem channel ended: %v", c.Err())
 			os.Exit(1)
 		default:
 		}
