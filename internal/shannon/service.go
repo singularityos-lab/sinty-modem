@@ -5,7 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +33,7 @@ type Settings struct {
 	RegTimeout  time.Duration
 	IMSTimeout  time.Duration
 	RetryDelay  time.Duration
+	SlotFile    string
 }
 
 type Audio interface {
@@ -269,8 +274,39 @@ func (s *Service) awaitRetry(ctx context.Context) bool {
 	}
 }
 
+func SavedSlot(path string) (int, bool) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	slot, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	return slot, err == nil
+}
+
+func saveSlot(path string, slot int) error {
+	if path == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path+".new", []byte(strconv.Itoa(slot)+"\n"), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(path+".new", path)
+}
+
 func (s *Service) remap(table []byte) {
 	logf := func(f string, a ...any) { log.Printf("modem: "+f, a...) }
+	if slot, ok := SavedSlot(s.settings.SlotFile); ok {
+		if table != nil {
+			return
+		}
+		if err := ril.SelectSlot(s.ril.Client(), slot, 8*time.Second); err != nil {
+			logf("saved slot %d: %v", slot, err)
+		}
+		return
+	}
 	mapped, err := s.ril.RemapEUICC(table, logf)
 	if err != nil {
 		logf("slot mapping: %v", err)
@@ -1064,6 +1100,9 @@ func (s *Service) SelectSlot(slot int) error {
 		return fmt.Errorf("select slot %d: %w", slot, err)
 	}
 	log.Printf("modem: physical slot %d put on the first line", slot)
+	if err := saveSlot(s.settings.SlotFile, slot); err != nil {
+		log.Printf("modem: the slot choice was not saved: %v", err)
+	}
 	s.mu.Lock()
 	s.radioOff = false
 	s.mu.Unlock()

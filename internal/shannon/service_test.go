@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"net"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -101,7 +102,7 @@ func startWithoutSIM(t *testing.T, retry time.Duration) (*lateModem, *Service) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := New(ril.New(c, ""), st, Settings{SIMTimeout: 10 * time.Millisecond, RetryDelay: retry}, nil, nil)
+	s := New(ril.New(c, ""), st, Settings{SIMTimeout: 10 * time.Millisecond, RetryDelay: retry, SlotFile: filepath.Join(dir, "slot")}, nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -177,4 +178,26 @@ func TestARestartIsAskedOfTheProcess(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("nobody was told to restart")
 	}
+}
+
+func TestTheChosenSlotSurvivesARestart(t *testing.T) {
+	_, s := startWithoutSIM(t, time.Hour)
+	if _, ok := SavedSlot(s.settings.SlotFile); ok {
+		t.Fatal("a slot was saved before anyone chose one")
+	}
+	if err := s.SelectSlot(1); err != nil {
+		t.Fatal(err)
+	}
+	if slot, ok := SavedSlot(s.settings.SlotFile); !ok || slot != 1 {
+		t.Fatalf("saved slot %d %t", slot, ok)
+	}
+}
+
+func TestASavedSlotIsUsedWhenBringUpRetries(t *testing.T) {
+	m, s := startWithoutSIM(t, time.Hour)
+	if err := os.WriteFile(s.settings.SlotFile, []byte("1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.wake()
+	until(t, "the saved slot was not mapped again", m.mapped.Load)
 }

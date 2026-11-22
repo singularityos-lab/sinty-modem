@@ -182,11 +182,21 @@ func runService() {
 		log.Fatalf("sinty-modemd: the modem is %s, not ONLINE", st)
 	}
 	logf := func(f string, a ...any) { log.Printf("sinty-modemd: "+f, a...) }
+	slotFile := filepath.Join(stateDir, "slot")
 	if rc, err := sit.Open(m.IPC); err != nil {
 		logf("slot status: %v", err)
 	} else {
-		if err := ril.MapEUICC(rc, 30*time.Second, logf); err != nil {
-			logf("slot mapping: %v", err)
+		slot, chosen := shannon.SavedSlot(slotFile)
+		if chosen {
+			if err := ril.SelectSlot(rc, slot, 8*time.Second); err != nil {
+				logf("saved slot %d: %v", slot, err)
+				chosen = false
+			}
+		}
+		if !chosen {
+			if err := ril.MapEUICC(rc, 30*time.Second, logf); err != nil {
+				logf("slot mapping: %v", err)
+			}
 		}
 		rc.Close()
 	}
@@ -217,6 +227,7 @@ func runService() {
 	}
 	svc := shannon.New(ril.New(c, m.Router), msgs, shannon.Settings{
 		Identity: ril.Identity{Manufacturer: maker, Model: model, OS: "Sinty OS"},
+		SlotFile: slotFile,
 	}, voice, network)
 	if b, err := os.ReadFile(basebandOut); err == nil {
 		svc.SetFirmware(strings.TrimSpace(string(b)))
