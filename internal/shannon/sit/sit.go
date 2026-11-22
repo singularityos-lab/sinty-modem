@@ -32,7 +32,10 @@ const (
 	VerifyPIN          = 0x0201
 	VerifyPUK          = 0x0202
 	SIMIO              = 0x0208
+	CloseChannel       = 0x020e
+	TransmitAPDU       = 0x020f
 	IndSIMStatus       = 0x0210
+	OpenChannel        = 0x0247
 	GetSlotStatus      = 0x024d
 	IndSlotStatus      = 0x024e
 	SetSlotMapping     = 0x0250
@@ -88,6 +91,7 @@ var allowed = map[uint16]bool{
 	SetScreenState: true, SetIndFilter: true, Dial: true, Answer: true, Hangup: true, HiddenMenu: true,
 	AddPDNInfo: true, SendDTMF: true, SendSMS: true, IMSSMSAck: true, DelPDNInfo: true, IMSStackStart: true,
 	SIMIO: true, GetSlotStatus: true, SetSlotMapping: true,
+	OpenChannel: true, TransmitAPDU: true, CloseChannel: true,
 }
 
 var ErrRefused = errors.New("request outside the allow-list")
