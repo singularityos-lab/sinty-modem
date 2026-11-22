@@ -1107,6 +1107,7 @@ func (s *Service) SelectSlot(slot int) error {
 	s.radioOff = false
 	s.mu.Unlock()
 	s.wake()
+	s.reload()
 	return nil
 }
 

@@ -236,6 +236,7 @@ func runService() {
 	if err != nil {
 		log.Fatalf("sinty-modemd: system bus: %v", err)
 	}
+	mm.ExportESIM(conn, svc.ESIM())
 	if _, err := mm.Export(conn, svc); err != nil {
 		log.Fatalf("sinty-modemd: %v", err)
 	}

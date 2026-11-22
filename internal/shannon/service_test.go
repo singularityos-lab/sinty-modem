@@ -201,3 +201,15 @@ func TestASavedSlotIsUsedWhenBringUpRetries(t *testing.T) {
 	s.wake()
 	until(t, "the saved slot was not mapped again", m.mapped.Load)
 }
+
+func TestChoosingASlotReloadsTheService(t *testing.T) {
+	_, s := startWithoutSIM(t, time.Hour)
+	if err := s.SelectSlot(1); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-s.Restarting():
+	case <-time.After(5 * time.Second):
+		t.Fatal("the service kept the old SIM")
+	}
+}
