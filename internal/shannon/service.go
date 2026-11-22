@@ -34,6 +34,7 @@ type Settings struct {
 	IMSTimeout  time.Duration
 	RetryDelay  time.Duration
 	SlotFile    string
+	Embedded    bool
 	PrefsFile   string
 	Usage       func() (rx, tx uint64)
 }
@@ -118,7 +119,7 @@ func New(r *ril.RIL, st *store.Store, s Settings, audio Audio, network Network) 
 			Stage:        phone.StageStarting,
 			Manufacturer: s.Identity.Manufacturer,
 			Model:        s.Identity.Model,
-			SIM:          phone.SIM{State: string(ril.SIMUnknown)},
+			SIM:          phone.SIM{State: string(ril.SIMUnknown), Embedded: s.Embedded},
 			IMS:          "unknown",
 			Emergency:    []string{"112", "911"},
 		},

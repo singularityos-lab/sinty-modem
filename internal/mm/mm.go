@@ -401,7 +401,19 @@ func (e *Exporter) props3gpp(st phone.Status) props {
 		"SubscriptionState":    dbus.MakeVariant(uint32(0)),
 		"EpsUeModeOperation":   dbus.MakeVariant(uint32(3)),
 		"PacketServiceState":   dbus.MakeVariant(packetState(st)),
+		"Pco":                  dbus.MakeVariant([]pco{}),
 	}
+}
+
+type pco struct {
+	Session  uint32
+	Complete bool
+	Data     []byte
+}
+
+type preferredNetwork struct {
+	Operator string
+	Access   uint32
 }
 
 func packetState(st phone.Status) uint32 {
@@ -452,10 +464,25 @@ func (e *Exporter) simProps(st phone.Status) props {
 		"OperatorIdentifier": dbus.MakeVariant(""),
 		"OperatorName":       dbus.MakeVariant(st.SIM.Operator),
 		"EmergencyNumbers":   dbus.MakeVariant(st.Emergency),
-		"SimType":            dbus.MakeVariant(uint32(1)),
+		"SimType":            dbus.MakeVariant(simType(st.SIM)),
 		"EsimStatus":         dbus.MakeVariant(uint32(0)),
-		"Removability":       dbus.MakeVariant(uint32(1)),
+		"Removability":       dbus.MakeVariant(removability(st.SIM)),
+		"PreferredNetworks":  dbus.MakeVariant([]preferredNetwork{}),
 	}
+}
+
+func simType(sim phone.SIM) uint32 {
+	if sim.Embedded {
+		return 2
+	}
+	return 1
+}
+
+func removability(sim phone.SIM) uint32 {
+	if sim.Embedded {
+		return 2
+	}
+	return 1
 }
 
 func (e *Exporter) refresh() {

@@ -26,6 +26,7 @@ type SIM struct {
 	PINRetries int
 	PUKRetries int
 	Operator   string
+	Embedded   bool
 }
 
 type Status struct {

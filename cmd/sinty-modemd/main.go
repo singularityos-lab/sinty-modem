@@ -229,6 +229,7 @@ func runService() {
 	svc := shannon.New(ril.New(c, m.Router), msgs, shannon.Settings{
 		Identity:  ril.Identity{Manufacturer: maker, Model: model, OS: "Sinty OS"},
 		SlotFile:  slotFile,
+		Embedded:  slot.Name == "esim",
 		PrefsFile: filepath.Join(stateDir, "network.json"),
 		Usage:     usage.New(filepath.Join(stateDir, "usage.json"), network.Device).Month,
 	}, voice, network)
