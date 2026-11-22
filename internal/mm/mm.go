@@ -326,9 +326,25 @@ func (e *Exporter) addModem() {
 			},
 		},
 		ifModem3gpp: {
-			"Register": func(string) *dbus.Error { return nil },
+			"Register": func(code string) *dbus.Error {
+				if err := e.backend.SelectNetwork(code); err != nil {
+					return fail("Failed", err)
+				}
+				return nil
+			},
 			"Scan": func() ([]map[string]dbus.Variant, *dbus.Error) {
-				return nil, fail("Unsupported", errors.New("not supported"))
+				found, err := e.backend.SearchNetworks()
+				if err != nil {
+					return nil, fail("Failed", err)
+				}
+				list := []map[string]dbus.Variant{}
+				for _, n := range found {
+					list = append(list, map[string]dbus.Variant{
+						"operator-code": dbus.MakeVariant(n.Code),
+						"status":        dbus.MakeVariant(n.Status),
+					})
+				}
+				return list, nil
 			},
 		},
 		ifVoice: {

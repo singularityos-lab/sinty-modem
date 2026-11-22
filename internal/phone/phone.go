@@ -105,6 +105,11 @@ var (
 	ErrWrongPUK = errors.New("wrong PUK")
 )
 
+type Network struct {
+	Code   string
+	Status uint32
+}
+
 type Backend interface {
 	Status() Status
 	Calls() []Call
@@ -118,6 +123,8 @@ type Backend interface {
 	DeleteMessage(id string) error
 	SendPIN(pin string) (int, error)
 	SendPUK(puk, pin string) (int, error)
+	SearchNetworks() ([]Network, error)
+	SelectNetwork(code string) error
 	SetRadio(on bool) error
 	SelectSlot(slot int) error
 	Restart() error

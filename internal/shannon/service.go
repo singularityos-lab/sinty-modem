@@ -61,6 +61,7 @@ type Service struct {
 	net      Network
 
 	dataMu   sync.Mutex
+	found    []ril.Network
 	mu       sync.Mutex
 	prefs    prefs
 	status   phone.Status
