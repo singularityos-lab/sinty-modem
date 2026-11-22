@@ -22,6 +22,7 @@ import (
 	"github.com/singularityos-lab/sinty-modem/internal/device"
 	"github.com/singularityos-lab/sinty-modem/internal/mm"
 	"github.com/singularityos-lab/sinty-modem/internal/netcfg"
+	"github.com/singularityos-lab/sinty-modem/internal/recovery"
 	"github.com/singularityos-lab/sinty-modem/internal/shannon"
 	"github.com/singularityos-lab/sinty-modem/internal/shannon/cp"
 	"github.com/singularityos-lab/sinty-modem/internal/shannon/ril"
@@ -259,6 +260,21 @@ func runService() {
 	}
 }
 
+func runRecovery() {
+	conn, err := dbus.ConnectSystemBus()
+	if err != nil {
+		log.Fatalf("recovery: system bus: %v", err)
+	}
+	defer conn.Close()
+	m := recovery.Modem{Socket: recovery.AtomSocket, Latch: filepath.Join(stateDir, "bringup-attempts")}
+	if err := mm.ExportRecovery(conn, m); err != nil {
+		log.Fatalf("recovery: %v", err)
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+	<-ctx.Done()
+}
+
 func main() {
 	log.SetFlags(0)
 	cmd := ""
@@ -270,10 +286,12 @@ func main() {
 		runStack()
 	case "stack-ns":
 		runStackNS()
+	case "recovery":
+		runRecovery()
 	case "", "serve":
 		runService()
 	default:
-		fmt.Fprintln(os.Stderr, "usage: sinty-modemd [serve|stack]")
+		fmt.Fprintln(os.Stderr, "usage: sinty-modemd [serve|stack|recovery]")
 		os.Exit(2)
 	}
 }
