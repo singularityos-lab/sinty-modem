@@ -1,6 +1,7 @@
 package shannon
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -17,10 +18,11 @@ const maxAPN = 100
 var validAPN = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$`)
 
 type prefs struct {
-	Data    bool   `json:"data"`
-	Roaming bool   `json:"roaming"`
-	APN     string `json:"apn"`
-	LTEOnly bool   `json:"lte_only"`
+	Data     bool   `json:"data"`
+	Roaming  bool   `json:"roaming"`
+	APN      string `json:"apn"`
+	LTEOnly  bool   `json:"lte_only"`
+	RadioOff bool   `json:"radio_off"`
 }
 
 func loadPrefs(path string) prefs {
@@ -105,6 +107,32 @@ func (s *Service) SetLTEOnly(on bool) error {
 		return err
 	}
 	s.update(func(x *phone.Status) { x.LTEOnly = on })
+	return nil
+}
+
+func (s *Service) wantRadio(on bool) {
+	if err := s.editPrefs(func(p *prefs) { p.RadioOff = !on }); err != nil {
+		log.Printf("modem: radio choice: %v", err)
+	}
+	s.mu.Lock()
+	s.radioOff = !on
+	s.mu.Unlock()
+}
+
+func (s *Service) radioUnwanted() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.radioOff
+}
+
+func (s *Service) awaitRadio(ctx context.Context) error {
+	for s.radioUnwanted() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-s.simWake:
+		}
+	}
 	return nil
 }
 

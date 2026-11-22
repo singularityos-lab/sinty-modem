@@ -100,6 +100,7 @@ func New(r *ril.RIL, st *store.Store, s Settings, audio Audio, network Network) 
 	if s.APNDatabase == "" {
 		s.APNDatabase = apn.Database
 	}
+	saved := loadPrefs(s.PrefsFile)
 	return &Service{
 		ril:      r,
 		store:    st,
@@ -111,7 +112,8 @@ func New(r *ril.RIL, st *store.Store, s Settings, audio Audio, network Network) 
 		pinWait:  make(chan struct{}, 1),
 		simWake:  make(chan struct{}, 1),
 		restart:  make(chan struct{}, 1),
-		prefs:    loadPrefs(s.PrefsFile),
+		prefs:    saved,
+		radioOff: saved.RadioOff,
 		status: phone.Status{
 			Stage:        phone.StageStarting,
 			Manufacturer: s.Identity.Manufacturer,
@@ -407,6 +409,19 @@ func (s *Service) bringup(ctx context.Context) error {
 			} else {
 				nrAfter = true
 			}
+		}
+	}
+	if s.radioUnwanted() {
+		if alreadyOn {
+			if err := s.ril.SetRadio(false); err != nil {
+				return fmt.Errorf("radio off: %w", err)
+			}
+			alreadyOn = false
+		}
+		s.update(func(x *phone.Status) { x.Radio = false })
+		s.stage(phone.StageOff, nil)
+		if err := s.awaitRadio(ctx); err != nil {
+			return err
 		}
 	}
 	if !alreadyOn {
@@ -1132,9 +1147,7 @@ func (s *Service) SelectSlot(slot int) error {
 	if err := saveSlot(s.settings.SlotFile, slot); err != nil {
 		log.Printf("modem: the slot choice was not saved: %v", err)
 	}
-	s.mu.Lock()
-	s.radioOff = false
-	s.mu.Unlock()
+	s.wantRadio(true)
 	s.wake()
 	s.reload()
 	return nil
@@ -1163,9 +1176,7 @@ func (s *Service) SetRadio(on bool) error {
 	if err := s.ril.SetRadio(on); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	s.radioOff = !on
-	s.mu.Unlock()
+	s.wantRadio(on)
 	s.update(func(x *phone.Status) { x.Radio = on })
 	if on {
 		s.wake()
