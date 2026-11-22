@@ -22,7 +22,13 @@ const (
 	maxReply    = 8 << 20
 )
 
-var identifiers = regexp.MustCompile(`[0-9A-Fa-f]{16,}|[0-9]{6,}`)
+var identifiers = regexp.MustCompile(strings.Join([]string{
+	`[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){3,}`,
+	`\b[0-9A-Fa-f]{1,4}::[0-9A-Fa-f]{0,4}`,
+	`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`,
+	`[0-9A-Fa-f]{16,}`,
+	`\+?\(?[0-9](?:[ ().-]{0,2}[0-9]){5,}`,
+}, "|"))
 
 type request struct {
 	Cmd  string `json:"cmd"`
@@ -40,6 +46,8 @@ type Modem struct {
 	Socket string
 	Latch  string
 }
+
+func redact(line string) string { return identifiers.ReplaceAllString(line, "<hidden>") }
 
 func (m Modem) ask(cmd, unit string) (reply, error) {
 	var r reply
@@ -123,7 +131,7 @@ func (m Modem) Diagnostics() string {
 			continue
 		}
 		for _, line := range r.Lines[max(0, len(r.Lines)-logLines):] {
-			fmt.Fprintf(&b, "  %s\n", identifiers.ReplaceAllString(line, "<hidden>"))
+			fmt.Fprintf(&b, "  %s\n", redact(line))
 		}
 	}
 	return b.String()

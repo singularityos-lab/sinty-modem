@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"unicode"
 )
 
 type fakeInit struct {
@@ -106,5 +107,18 @@ func TestDiagnosticsHideIdentifiers(t *testing.T) {
 	}
 	if !strings.Contains(text, "421 bytes, count 0") || !strings.Contains(text, stackUnit+": failed") {
 		t.Fatalf("the diagnostics lost the cause: %s", text)
+	}
+}
+
+func TestRedactionHidesSpacedNumbersAndAddresses(t *testing.T) {
+	for _, line := range []string{"dial +1 555 010 0123", "dial (555) 010-0123", "address 10.0.0.1/30", "address 2001:db8::7", "gateway fe80::1", "imei 00-000000-000000-0"} {
+		if got := redact(line); !strings.Contains(got, "<hidden>") || strings.ContainsFunc(strings.ReplaceAll(got, "/30", ""), unicode.IsDigit) {
+			t.Errorf("%q became %q", line, got)
+		}
+	}
+	for _, line := range []string{"2026/11/22 09:36:24 slot status (421 bytes, count 0)", "logical slots mapped to physical [1 0]", "registration failed: domain 2 cause 19 additional 0"} {
+		if got := redact(line); got != line {
+			t.Errorf("%q lost detail: %q", line, got)
+		}
 	}
 }
