@@ -16,6 +16,7 @@ const (
 type NetworkControl interface {
 	NetworkSettings() (data, roaming bool, apn string)
 	IMEI() (string, error)
+	DataUsage() (rx, tx uint64)
 	SetData(on bool) error
 	SetRoaming(on bool) error
 	SetAPN(name string) error
@@ -26,6 +27,10 @@ func networkMethods(c NetworkControl) map[string]interface{} {
 		"GetSettings": func() (bool, bool, string, *dbus.Error) {
 			data, roaming, apn := c.NetworkSettings()
 			return data, roaming, apn, nil
+		},
+		"GetUsage": func() (uint64, uint64, *dbus.Error) {
+			rx, tx := c.DataUsage()
+			return rx, tx, nil
 		},
 		"GetIMEI": func() (string, *dbus.Error) {
 			imei, err := c.IMEI()

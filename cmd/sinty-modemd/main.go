@@ -29,6 +29,7 @@ import (
 	"github.com/singularityos-lab/sinty-modem/internal/shannon/sit"
 	"github.com/singularityos-lab/sinty-modem/internal/shannon/vendor"
 	"github.com/singularityos-lab/sinty-modem/internal/store"
+	"github.com/singularityos-lab/sinty-modem/internal/usage"
 )
 
 const (
@@ -229,6 +230,7 @@ func runService() {
 		Identity:  ril.Identity{Manufacturer: maker, Model: model, OS: "Sinty OS"},
 		SlotFile:  slotFile,
 		PrefsFile: filepath.Join(stateDir, "network.json"),
+		Usage:     usage.New(filepath.Join(stateDir, "usage.json"), network.Device).Month,
 	}, voice, network)
 	if b, err := os.ReadFile(basebandOut); err == nil {
 		svc.SetFirmware(strings.TrimSpace(string(b)))

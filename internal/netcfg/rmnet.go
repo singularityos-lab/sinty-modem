@@ -180,6 +180,15 @@ func (r *RMNet) writeDNS(dev string, b ril.Bearer) error {
 	return os.Rename(tmp, filepath.Join(DNSDir, dev))
 }
 
+func (r *RMNet) Device() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, dev := range r.devs {
+		return dev
+	}
+	return ""
+}
+
 func (r *RMNet) Down(_ string) error {
 	r.mu.Lock()
 	devs := r.devs

@@ -20,6 +20,7 @@ var openMethods = map[string]bool{
 	"ListCalls":   true,
 	"List":        true,
 	"GetSettings": true,
+	"GetUsage":    true,
 }
 
 func actionFor(iface, method string) string {

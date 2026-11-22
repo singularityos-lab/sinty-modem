@@ -35,6 +35,7 @@ type Settings struct {
 	RetryDelay  time.Duration
 	SlotFile    string
 	PrefsFile   string
+	Usage       func() (rx, tx uint64)
 }
 
 type Audio interface {
@@ -633,6 +634,7 @@ func (s *Service) poll(ctx context.Context) {
 				s.refreshOperator()
 			}
 		}
+		s.DataUsage()
 		if st, err := cp.Status(); err == nil && st != cp.Online {
 			s.stage(phone.StageFailed, fmt.Errorf("the modem left ONLINE (%s)", st))
 		}

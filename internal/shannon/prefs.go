@@ -73,6 +73,13 @@ func (s *Service) NetworkSettings() (data, roaming bool, apn string) {
 
 func (s *Service) IMEI() (string, error) { return s.ril.IMEI() }
 
+func (s *Service) DataUsage() (rx, tx uint64) {
+	if s.settings.Usage == nil {
+		return 0, 0
+	}
+	return s.settings.Usage()
+}
+
 func (s *Service) SetData(on bool) error {
 	if err := s.editPrefs(func(p *prefs) { p.Data = on }); err != nil {
 		return err
