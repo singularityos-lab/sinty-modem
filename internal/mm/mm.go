@@ -90,6 +90,9 @@ type Exporter struct {
 }
 
 func fail(name string, err error) *dbus.Error {
+	if errors.Is(err, phone.ErrNotReady) {
+		name = "NotRegistered"
+	}
 	return &dbus.Error{Name: errCore + name, Body: []interface{}{err.Error()}}
 }
 
