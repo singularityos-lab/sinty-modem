@@ -28,6 +28,7 @@ const (
 	ifCall      = "org.freedesktop.ModemManager1.Call"
 	ifSms       = "org.freedesktop.ModemManager1.Sms"
 	ifRecovery  = "dev.sinty.Modem1.Recovery"
+	ifCallAudio = "dev.sinty.Modem1.Call"
 
 	errCore = "org.freedesktop.ModemManager1.Error.Core."
 )
@@ -66,6 +67,7 @@ type callObj struct {
 	created bool
 	number  string
 	started bool
+	muted   bool
 }
 
 type smsObj struct {
@@ -488,7 +490,10 @@ func (e *Exporter) listCalls() ([]dbus.ObjectPath, *dbus.Error) {
 
 func (e *Exporter) addCallObject(c *callObj, direction int32, reason int32) {
 	b := e.backend
-	e.b.Add(c.path, map[string]props{ifCall: {
+	muted := e.inheritMute(c)
+	e.b.Add(c.path, map[string]props{ifCallAudio: {
+		"Muted": dbus.MakeVariant(muted),
+	}, ifCall: {
 		"State":       dbus.MakeVariant(c.state),
 		"StateReason": dbus.MakeVariant(reason),
 		"Direction":   dbus.MakeVariant(direction),
@@ -496,7 +501,9 @@ func (e *Exporter) addCallObject(c *callObj, direction int32, reason int32) {
 		"Multiparty":  dbus.MakeVariant(false),
 		"AudioPort":   dbus.MakeVariant(""),
 		"AudioFormat": dbus.MakeVariant(map[string]dbus.Variant{}),
-	}}, map[string]map[string]interface{}{ifCall: {
+	}}, map[string]map[string]interface{}{ifCallAudio: {
+		"SetMute": e.setMute,
+	}, ifCall: {
 		"Start": func() *dbus.Error {
 			e.mu.Lock()
 			if c.started {
@@ -614,6 +621,36 @@ func (e *Exporter) setCallState(c *callObj, state, reason int32) {
 			e.dropCall(c)
 		}()
 	}
+}
+
+func (e *Exporter) inheritMute(c *callObj) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, other := range e.calls {
+		if other != c && other.muted && other.state != callTerminated {
+			c.muted = true
+		}
+	}
+	return c.muted
+}
+
+func (e *Exporter) setMute(on bool) *dbus.Error {
+	if err := e.backend.SetMute(on); err != nil {
+		return fail("Failed", err)
+	}
+	var paths []dbus.ObjectPath
+	e.mu.Lock()
+	for path, c := range e.calls {
+		if c.state != callTerminated {
+			c.muted = on
+			paths = append(paths, path)
+		}
+	}
+	e.mu.Unlock()
+	for _, path := range paths {
+		e.b.Update(path, ifCallAudio, props{"Muted": dbus.MakeVariant(on)})
+	}
+	return nil
 }
 
 func (e *Exporter) trackCall(call phone.Call) {

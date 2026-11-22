@@ -30,7 +30,7 @@ func actionFor(iface, method string) string {
 	switch iface {
 	case ifManager:
 		return actionControl
-	case ifVoice, ifCall:
+	case ifVoice, ifCall, ifCallAudio:
 		return actionVoice
 	case ifMessaging, ifSms:
 		return actionMessaging

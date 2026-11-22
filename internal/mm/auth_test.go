@@ -13,6 +13,7 @@ func TestActionFor(t *testing.T) {
 	cases := []struct{ iface, method, want string }{
 		{ifVoice, "CreateCall", actionVoice},
 		{ifCall, "Start", actionVoice},
+		{ifCallAudio, "SetMute", actionVoice},
 		{ifVoice, "ListCalls", ""},
 		{ifMessaging, "Create", actionMessaging},
 		{ifSms, "Send", actionMessaging},
