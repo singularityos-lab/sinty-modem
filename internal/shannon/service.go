@@ -1073,6 +1073,14 @@ func (s *Service) SendPUK(puk, pin string) (int, error) {
 	return s.unlocked(left, err)
 }
 
+func (s *Service) ChangePIN(old, next string) (int, error) {
+	left, err := s.ril.ChangePIN(old, next)
+	if st, serr := s.ril.SIMStatus(); serr == nil {
+		s.applySIM(st)
+	}
+	return left, err
+}
+
 func (s *Service) SendPIN(pin string) (int, error) {
 	left, err := s.ril.VerifyPIN(pin)
 	return s.unlocked(left, err)

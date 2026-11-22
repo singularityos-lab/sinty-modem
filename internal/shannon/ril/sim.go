@@ -151,7 +151,9 @@ func (r *RIL) IMSI(aid []byte) (string, error) {
 	return string(d), nil
 }
 
-var ErrWrongPIN = errors.New("wrong PIN")
+const facilitySIMPIN = 3
+
+var ErrWrongPIN = phone.ErrWrongPIN
 
 func pinPayload(code string, aid []byte) ([]byte, error) {
 	if len(code) < 4 || len(code) > 8 {
@@ -203,6 +205,44 @@ func (r *RIL) VerifyPUK(puk, pin string) (int, error) {
 	var me *sit.ModemError
 	if errors.As(err, &me) {
 		return left, fmt.Errorf("%w (%d tries left)", phone.ErrWrongPUK, left)
+	}
+	return left, err
+}
+
+func changePINPayload(old, next string, aid []byte) ([]byte, error) {
+	head, err := pinPayload(old, nil)
+	if err != nil {
+		return nil, err
+	}
+	tail, err := pinPayload(next, aid)
+	if err != nil {
+		return nil, err
+	}
+	p := append([]byte{facilitySIMPIN}, head[:9]...)
+	return append(p, tail...), nil
+}
+
+func (r *RIL) ChangePIN(old, next string) (int, error) {
+	st, err := r.SIMStatus()
+	if err != nil {
+		return 0, err
+	}
+	app := st.Main()
+	if app == nil || appStates[app.State] != SIMReady {
+		return 0, errors.New("unlock the SIM before changing its PIN")
+	}
+	p, err := changePINPayload(old, next, app.AID)
+	if err != nil {
+		return app.PINRetries, err
+	}
+	_, err = r.c.Request(sit.ChangePIN, p, 20*time.Second)
+	left := app.PINRetries
+	if after, serr := r.SIMStatus(); serr == nil && after.Main() != nil {
+		left = after.Main().PINRetries
+	}
+	var me *sit.ModemError
+	if errors.As(err, &me) {
+		return left, fmt.Errorf("%w (%d tries left)", ErrWrongPIN, left)
 	}
 	return left, err
 }

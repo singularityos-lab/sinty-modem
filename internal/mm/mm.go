@@ -406,23 +406,30 @@ func (e *Exporter) addSim() {
 	e.b.Add(simPath, map[string]props{ifSim: e.simProps(st)}, map[string]map[string]interface{}{
 		ifSim: {
 			"SendPin": func(pin string) *dbus.Error {
-				if _, err := b.SendPIN(pin); err != nil {
-					return &dbus.Error{Name: "org.freedesktop.ModemManager1.Error.MobileEquipment.IncorrectPassword", Body: []interface{}{err.Error()}}
-				}
-				return nil
+				_, err := b.SendPIN(pin)
+				return codeError(err)
 			},
 			"SendPuk": func(puk, pin string) *dbus.Error {
-				if _, err := b.SendPUK(puk, pin); errors.Is(err, phone.ErrWrongPUK) {
-					return &dbus.Error{Name: "org.freedesktop.ModemManager1.Error.MobileEquipment.IncorrectPassword", Body: []interface{}{err.Error()}}
-				} else if err != nil {
-					return fail("Failed", err)
-				}
-				return nil
+				_, err := b.SendPUK(puk, pin)
+				return codeError(err)
 			},
 			"EnablePin": func(string, bool) *dbus.Error { return fail("Unsupported", errors.New("not supported yet")) },
-			"ChangePin": func(string, string) *dbus.Error { return fail("Unsupported", errors.New("not supported yet")) },
+			"ChangePin": func(old, next string) *dbus.Error {
+				_, err := b.ChangePIN(old, next)
+				return codeError(err)
+			},
 		},
 	})
+}
+
+func codeError(err error) *dbus.Error {
+	if errors.Is(err, phone.ErrWrongPIN) || errors.Is(err, phone.ErrWrongPUK) {
+		return &dbus.Error{Name: "org.freedesktop.ModemManager1.Error.MobileEquipment.IncorrectPassword", Body: []interface{}{err.Error()}}
+	}
+	if err != nil {
+		return fail("Failed", err)
+	}
+	return nil
 }
 
 func (e *Exporter) simProps(st phone.Status) props {

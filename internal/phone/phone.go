@@ -103,6 +103,7 @@ var (
 	ErrBusy     = errors.New("end the current call before placing another")
 	ErrBadAPN   = errors.New("this is not a valid access point name")
 	ErrWrongPUK = errors.New("wrong PUK")
+	ErrWrongPIN = errors.New("wrong PIN")
 )
 
 type Network struct {
@@ -123,6 +124,7 @@ type Backend interface {
 	DeleteMessage(id string) error
 	SendPIN(pin string) (int, error)
 	SendPUK(puk, pin string) (int, error)
+	ChangePIN(old, next string) (int, error)
 	SearchNetworks() ([]Network, error)
 	SelectNetwork(code string) error
 	SetRadio(on bool) error

@@ -31,6 +31,7 @@ const (
 	SIMStatus           = 0x0200
 	VerifyPIN           = 0x0201
 	VerifyPUK           = 0x0202
+	ChangePIN           = 0x0205
 	SIMIO               = 0x0208
 	CloseChannel        = 0x020e
 	TransmitAPDU        = 0x020f
@@ -96,7 +97,7 @@ var allowed = map[uint16]bool{
 	AddPDNInfo: true, SendDTMF: true, SendSMS: true, IMSSMSAck: true, DelPDNInfo: true, IMSStackStart: true,
 	SIMIO: true, GetSlotStatus: true, SetSlotMapping: true,
 	OpenChannel: true, TransmitAPDU: true, CloseChannel: true, GetIMEI: true,
-	SelectNetworkAuto: true, SelectNetworkManual: true, QueryNetworks: true,
+	SelectNetworkAuto: true, SelectNetworkManual: true, QueryNetworks: true, ChangePIN: true,
 }
 
 var ErrRefused = errors.New("request outside the allow-list")
