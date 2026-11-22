@@ -492,6 +492,7 @@ func (s *Service) bringup(ctx context.Context) error {
 	}
 	s.update(func(x *phone.Status) { x.IMS = "registered" })
 	s.stage(phone.StageReady, nil)
+	go s.resyncData()
 	return nil
 }
 
@@ -501,17 +502,14 @@ func (s *Service) followRoaming(reg ril.Registration) {
 	if s.Status().Registration == before {
 		return
 	}
-	go func() {
-		if err := s.syncData(); err != nil {
-			log.Printf("modem: data after a network change: %v", err)
-		}
-	}()
+	go s.resyncData()
 }
 
 func (s *Service) imsFailed(err error) error {
 	s.update(func(x *phone.Status) { x.IMS = "failed" })
 	log.Printf("modem: IMS: %v", err)
 	s.stage(phone.StageReady, err)
+	go s.resyncData()
 	return nil
 }
 
@@ -823,20 +821,11 @@ func (s *Service) reconnect() {
 	delay := 3 * time.Second
 	for i := 0; i < 40; i++ {
 		time.Sleep(delay)
-		st := s.Status()
-		if st.Stage == phone.StageOff || !st.Radio {
+		done, err := s.restoreData()
+		if done {
 			return
 		}
-		internet := s.internetAPN()
-		if internet == "" || !s.dataWanted() {
-			return
-		}
-		if err := s.startInternet(internet, s.settings.IPType); err == nil {
-			log.Printf("modem: internet bearer set up again")
-			return
-		} else {
-			log.Printf("modem: internet bearer again: %v", err)
-		}
+		log.Printf("modem: internet bearer again: %v", err)
 		if delay < 5*time.Minute {
 			delay *= 2
 		}

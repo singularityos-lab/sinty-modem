@@ -1,6 +1,12 @@
 package mm
 
-import "github.com/godbus/dbus/v5"
+import (
+	"errors"
+
+	"github.com/godbus/dbus/v5"
+
+	"github.com/singularityos-lab/sinty-modem/internal/phone"
+)
 
 const (
 	networkPath = dbus.ObjectPath("/dev/sinty/Modem1/Network")
@@ -41,8 +47,10 @@ func networkMethods(c NetworkControl) map[string]interface{} {
 			return nil
 		},
 		"SetAPN": func(name string) *dbus.Error {
-			if err := c.SetAPN(name); err != nil {
+			if err := c.SetAPN(name); errors.Is(err, phone.ErrBadAPN) {
 				return fail("InvalidArgs", err)
+			} else if err != nil {
+				return fail("Failed", err)
 			}
 			return nil
 		},

@@ -101,6 +101,7 @@ var (
 	ErrNotReady = errors.New("cellular service is not registered yet")
 	ErrNoCall   = errors.New("this call is no longer available")
 	ErrBusy     = errors.New("end the current call before placing another")
+	ErrBadAPN   = errors.New("this is not a valid access point name")
 )
 
 type Backend interface {

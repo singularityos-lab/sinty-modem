@@ -253,22 +253,26 @@ func sendPending(c *lpa.Client) error {
 	if err != nil {
 		return err
 	}
-	for _, n := range list {
+	return sendEach(list, func(n *sgp22.NotificationMetadata) error {
 		pending, err := c.RetrieveNotificationList(n.SequenceNumber)
-		if err != nil {
+		if err != nil || len(pending) == 0 {
 			return err
-		}
-		if len(pending) == 0 {
-			continue
 		}
 		for _, p := range pending {
 			if err := c.HandleNotification(p); err != nil {
 				return err
 			}
 		}
-		if err := c.RemoveNotificationFromList(n.SequenceNumber); err != nil {
-			return err
+		return c.RemoveNotificationFromList(n.SequenceNumber)
+	})
+}
+
+func sendEach[T any](list []T, send func(T) error) error {
+	var failed []error
+	for _, n := range list {
+		if err := send(n); err != nil {
+			failed = append(failed, err)
 		}
 	}
-	return nil
+	return errors.Join(failed...)
 }

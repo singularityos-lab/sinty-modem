@@ -2,7 +2,6 @@ package shannon
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -15,10 +14,7 @@ import (
 
 const maxAPN = 100
 
-var (
-	validAPN  = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$`)
-	errBadAPN = errors.New("this is not a valid access point name")
-)
+var validAPN = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$`)
 
 type prefs struct {
 	Data    bool   `json:"data"`
@@ -92,7 +88,7 @@ func (s *Service) SetRoaming(on bool) error {
 
 func (s *Service) SetAPN(name string) error {
 	if name != "" && (len(name) > maxAPN || !validAPN.MatchString(name)) {
-		return errBadAPN
+		return phone.ErrBadAPN
 	}
 	if err := s.idle(); err != nil {
 		return err
@@ -149,6 +145,30 @@ func (s *Service) syncData() error {
 		return s.stopInternet(up)
 	}
 	return nil
+}
+
+func (s *Service) resyncData() {
+	if err := s.syncData(); err != nil {
+		log.Printf("modem: data after a change: %v", err)
+	}
+}
+
+func (s *Service) restoreData() (bool, error) {
+	s.dataMu.Lock()
+	defer s.dataMu.Unlock()
+	st := s.Status()
+	if st.Stage == phone.StageOff || !st.Radio || st.Data {
+		return true, nil
+	}
+	internet := s.internetAPN()
+	if internet == "" || !s.dataWanted() {
+		return true, nil
+	}
+	if err := s.startInternet(internet, s.settings.IPType); err != nil {
+		return false, err
+	}
+	log.Printf("modem: internet bearer set up again")
+	return true, nil
 }
 
 func (s *Service) stopInternet(b ril.Bearer) error {
