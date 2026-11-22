@@ -3,6 +3,7 @@ package mm
 import (
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/godbus/dbus/v5"
@@ -59,9 +60,12 @@ func TestGuardOverTheBus(t *testing.T) {
 	}
 	defer client.Close()
 
+	var mu sync.Mutex
 	allow := map[string]bool{}
 	var seen []string
 	auth := func(sender dbus.Sender, action string) *dbus.Error {
+		mu.Lock()
+		defer mu.Unlock()
 		seen = append(seen, string(sender))
 		if allow[action] {
 			return nil
@@ -72,6 +76,8 @@ func TestGuardOverTheBus(t *testing.T) {
 	dialed := ""
 	b.Add("/test/Modem", map[string]props{ifVoice: {}}, map[string]map[string]interface{}{ifVoice: {
 		"CreateCall": func(p map[string]dbus.Variant) (dbus.ObjectPath, *dbus.Error) {
+			mu.Lock()
+			defer mu.Unlock()
 			dialed = p["number"].Value().(string)
 			return "/test/Call/1", nil
 		},
@@ -83,11 +89,14 @@ func TestGuardOverTheBus(t *testing.T) {
 
 	var path dbus.ObjectPath
 	err = obj.Call(ifVoice+".CreateCall", 0, args).Store(&path)
-	if err == nil || !strings.Contains(err.Error(), actionVoice) || dialed != "" {
-		t.Fatalf("denied call went through: err=%v dialed=%q", err, dialed)
+	mu.Lock()
+	gotDialed, gotSeen := dialed, seen
+	mu.Unlock()
+	if err == nil || !strings.Contains(err.Error(), actionVoice) || gotDialed != "" {
+		t.Fatalf("denied call went through: err=%v dialed=%q", err, gotDialed)
 	}
-	if len(seen) != 1 || seen[0] != client.Names()[0] {
-		t.Fatalf("authorizer saw sender %v, want %s", seen, client.Names()[0])
+	if len(gotSeen) != 1 || gotSeen[0] != client.Names()[0] {
+		t.Fatalf("authorizer saw sender %v, want %s", gotSeen, client.Names()[0])
 	}
 
 	var calls []dbus.ObjectPath
@@ -95,8 +104,13 @@ func TestGuardOverTheBus(t *testing.T) {
 		t.Fatalf("open method failed: %v %v", err, calls)
 	}
 
+	mu.Lock()
 	allow[actionVoice] = true
-	if err := obj.Call(ifVoice+".CreateCall", 0, args).Store(&path); err != nil || path != "/test/Call/1" || dialed != "112" {
+	mu.Unlock()
+	err = obj.Call(ifVoice+".CreateCall", 0, args).Store(&path)
+	mu.Lock()
+	defer mu.Unlock()
+	if err != nil || path != "/test/Call/1" || dialed != "112" {
 		t.Fatalf("allowed call failed: err=%v path=%s dialed=%q", err, path, dialed)
 	}
 }

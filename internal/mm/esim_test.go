@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/godbus/dbus/v5"
@@ -11,13 +12,13 @@ import (
 	"github.com/singularityos-lab/sinty-modem/internal/esim"
 )
 
-type fakeProfiles struct{ enabled string }
+type fakeProfiles struct{ enabled atomic.Value }
 
 func (f *fakeProfiles) EID() (string, error) { return "EID", nil }
 func (f *fakeProfiles) Profiles() ([]esim.Profile, error) {
 	return []esim.Profile{{ICCID: "one", Name: "Plan", Provider: "Carrier", Enabled: true}}, nil
 }
-func (f *fakeProfiles) Enable(id string) error   { f.enabled = id; return nil }
+func (f *fakeProfiles) Enable(id string) error   { f.enabled.Store(id); return nil }
 func (f *fakeProfiles) Disable(string) error     { return nil }
 func (f *fakeProfiles) Rename(_, _ string) error { return nil }
 func (f *fakeProfiles) Delete(string) error      { return esim.ErrActive }
@@ -66,7 +67,7 @@ func TestESIMProfilesOverTheBus(t *testing.T) {
 	if sig := dbus.SignatureOf(list).String(); sig != "a(ssssb)" {
 		t.Fatalf("signature %s", sig)
 	}
-	if err := o.Call(ifESIM+".EnableProfile", 0, "one").Err; err != nil || f.enabled != "one" {
+	if err := o.Call(ifESIM+".EnableProfile", 0, "one").Err; err != nil || f.enabled.Load() != "one" {
 		t.Fatalf("enable %v", err)
 	}
 	for method, want := range map[string]string{"DeleteProfile": "Active", "AddProfile": "ConfirmationNeeded"} {
