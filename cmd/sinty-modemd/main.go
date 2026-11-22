@@ -226,8 +226,9 @@ func runService() {
 		model = strings.TrimPrefix(model, "Google ")
 	}
 	svc := shannon.New(ril.New(c, m.Router), msgs, shannon.Settings{
-		Identity: ril.Identity{Manufacturer: maker, Model: model, OS: "Sinty OS"},
-		SlotFile: slotFile,
+		Identity:  ril.Identity{Manufacturer: maker, Model: model, OS: "Sinty OS"},
+		SlotFile:  slotFile,
+		PrefsFile: filepath.Join(stateDir, "network.json"),
 	}, voice, network)
 	if b, err := os.ReadFile(basebandOut); err == nil {
 		svc.SetFirmware(strings.TrimSpace(string(b)))
@@ -237,6 +238,7 @@ func runService() {
 		log.Fatalf("sinty-modemd: system bus: %v", err)
 	}
 	mm.ExportESIM(conn, svc.ESIM())
+	mm.ExportNetwork(conn, svc)
 	if _, err := mm.Export(conn, svc); err != nil {
 		log.Fatalf("sinty-modemd: %v", err)
 	}

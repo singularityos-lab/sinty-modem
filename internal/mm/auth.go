@@ -19,6 +19,7 @@ var openMethods = map[string]bool{
 	"ListBearers": true,
 	"ListCalls":   true,
 	"List":        true,
+	"GetSettings": true,
 }
 
 func actionFor(iface, method string) string {

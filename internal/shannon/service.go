@@ -34,6 +34,7 @@ type Settings struct {
 	IMSTimeout  time.Duration
 	RetryDelay  time.Duration
 	SlotFile    string
+	PrefsFile   string
 }
 
 type Audio interface {
@@ -59,7 +60,9 @@ type Service struct {
 	audio    Audio
 	net      Network
 
+	dataMu   sync.Mutex
 	mu       sync.Mutex
+	prefs    prefs
 	status   phone.Status
 	calls    map[string]*call
 	pending  string
@@ -106,6 +109,7 @@ func New(r *ril.RIL, st *store.Store, s Settings, audio Audio, network Network) 
 		pinWait:  make(chan struct{}, 1),
 		simWake:  make(chan struct{}, 1),
 		restart:  make(chan struct{}, 1),
+		prefs:    loadPrefs(s.PrefsFile),
 		status: phone.Status{
 			Stage:        phone.StageStarting,
 			Manufacturer: s.Identity.Manufacturer,
@@ -354,10 +358,7 @@ func (s *Service) bringup(ctx context.Context) error {
 		return err
 	}
 	s.chooseCarrier(last)
-	internet, imsAPN := s.settings.APN, s.settings.IMSAPN
-	if internet == "" && s.carrier != nil {
-		internet = s.carrier.Internet
-	}
+	custom, internet, imsAPN := s.customAPN(), s.internetAPN(), s.settings.IMSAPN
 	if imsAPN == "" && s.carrier != nil && s.carrier.IMS != "" {
 		imsAPN = s.carrier.IMS
 	}
@@ -374,7 +375,7 @@ func (s *Service) bringup(ctx context.Context) error {
 		s.ril.SetRadio(false)
 	}
 	attach := internet
-	if s.carrier != nil && s.carrier.Attach != "" && s.settings.APN == "" {
+	if s.carrier != nil && s.carrier.Attach != "" && custom == "" {
 		attach = s.carrier.Attach
 	}
 	if attach != "" {
@@ -438,7 +439,7 @@ func (s *Service) bringup(ctx context.Context) error {
 		}
 	}
 
-	if internet != "" {
+	if internet != "" && s.dataWanted() {
 		s.stage(phone.StageData, nil)
 		if err := s.startInternet(internet, ipType); err != nil {
 			log.Printf("modem: mobile data unavailable: %v", err)
@@ -492,6 +493,19 @@ func (s *Service) bringup(ctx context.Context) error {
 	s.update(func(x *phone.Status) { x.IMS = "registered" })
 	s.stage(phone.StageReady, nil)
 	return nil
+}
+
+func (s *Service) followRoaming(reg ril.Registration) {
+	before := s.Status().Registration
+	s.applyRegistration(reg)
+	if s.Status().Registration == before {
+		return
+	}
+	go func() {
+		if err := s.syncData(); err != nil {
+			log.Printf("modem: data after a network change: %v", err)
+		}
+	}()
 }
 
 func (s *Service) imsFailed(err error) error {
@@ -606,7 +620,7 @@ func (s *Service) poll(ctx context.Context) {
 			s.update(func(x *phone.Status) { x.Radio = on })
 		}
 		if reg, err := s.ril.PSRegistration(); err == nil {
-			s.applyRegistration(reg)
+			s.followRoaming(reg)
 			if reg.Registered() {
 				s.refreshOperator()
 			}
@@ -678,7 +692,7 @@ func (s *Service) handle(ind sit.Indication) {
 				}
 			}
 			if reg, err := s.ril.PSRegistration(); err == nil {
-				s.applyRegistration(reg)
+				s.followRoaming(reg)
 			}
 		}()
 	case sit.IndRegFailed:
@@ -813,11 +827,8 @@ func (s *Service) reconnect() {
 		if st.Stage == phone.StageOff || !st.Radio {
 			return
 		}
-		internet := s.settings.APN
-		if internet == "" && s.carrier != nil {
-			internet = s.carrier.Internet
-		}
-		if internet == "" {
+		internet := s.internetAPN()
+		if internet == "" || !s.dataWanted() {
 			return
 		}
 		if err := s.startInternet(internet, s.settings.IPType); err == nil {
