@@ -128,35 +128,76 @@ func mappingPayload(ports bool, mapping []SlotPort) []byte {
 	return p
 }
 
-func MapEUICC(c *sit.Client, wait time.Duration, logf func(string, ...any)) error {
-	var p []byte
-	deadline := time.Now().Add(wait)
-	for {
-		var err error
-		if p, err = c.Request(sit.GetSlotStatus, nil, 8*time.Second); err == nil {
-			break
-		}
-		if c.Err() != nil || time.Now().After(deadline) {
-			return err
-		}
-		time.Sleep(time.Second)
-	}
+func decodeSlots(p []byte) (SlotStatus, error) {
 	st, err := ParseSlotStatus(p)
-	if err != nil {
-		return fmt.Errorf("%w (%d bytes)", err, len(p))
+	if err == nil {
+		return st, nil
 	}
+	if len(p) == 0 {
+		return st, fmt.Errorf("%w (empty)", err)
+	}
+	return st, fmt.Errorf("%w (%d bytes, count %d)", err, len(p), p[0])
+}
+
+func readSlots(c *sit.Client) (SlotStatus, error) {
+	p, err := c.Request(sit.GetSlotStatus, nil, 8*time.Second)
+	if err != nil {
+		return SlotStatus{}, err
+	}
+	return decodeSlots(p)
+}
+
+func mapSlots(c *sit.Client, st SlotStatus, logf func(string, ...any)) (bool, error) {
 	for i, s := range st.Slots {
 		logf("physical slot %d: card %d, euicc %t, lines %v", i, s.Card, s.EUICC, s.Lines)
 	}
 	mapping, ok := EUICCMapping(st)
 	if !ok {
 		logf("logical slots left as they are")
-		return nil
+		return false, nil
 	}
 	if _, err := c.Request(sit.SetSlotMapping, mappingPayload(st.Ports, mapping), 8*time.Second); err != nil {
-		return err
+		return false, err
 	}
 	logf("logical slots mapped to physical %v", mapping)
+	return true, nil
+}
+
+func (r *RIL) RemapEUICC(table []byte, logf func(string, ...any)) (bool, error) {
+	var st SlotStatus
+	var err error
+	if table == nil {
+		st, err = readSlots(r.c)
+	} else {
+		st, err = decodeSlots(table)
+	}
+	if err != nil {
+		return false, err
+	}
+	return mapSlots(r.c, st, logf)
+}
+
+func MapEUICC(c *sit.Client, wait time.Duration, logf func(string, ...any)) error {
+	deadline := time.Now().Add(wait)
+	var st SlotStatus
+	reported := ""
+	for {
+		var err error
+		if st, err = readSlots(c); err == nil {
+			break
+		}
+		if c.Err() != nil || time.Now().After(deadline) {
+			return err
+		}
+		if msg := err.Error(); msg != reported {
+			logf("waiting for the slot table: %v", err)
+			reported = msg
+		}
+		time.Sleep(time.Second)
+	}
+	if mapped, err := mapSlots(c, st, logf); err != nil || !mapped {
+		return err
+	}
 	deadline = time.Now().Add(wait)
 	for time.Now().Before(deadline) {
 		if p, err := c.Request(sit.SIMStatus, nil, 8*time.Second); err == nil {

@@ -28,6 +28,7 @@ type Settings struct {
 	SIMTimeout  time.Duration
 	RegTimeout  time.Duration
 	IMSTimeout  time.Duration
+	RetryDelay  time.Duration
 }
 
 type Audio interface {
@@ -59,6 +60,8 @@ type Service struct {
 	pending  string
 	muted    bool
 	pinWait  chan struct{}
+	simWake  chan struct{}
+	radioOff bool
 	subs     map[chan phone.Event]struct{}
 	carrier  *apn.Carrier
 	internet ril.Bearer
@@ -77,6 +80,9 @@ func New(r *ril.RIL, st *store.Store, s Settings, audio Audio, network Network) 
 	if s.IMSTimeout == 0 {
 		s.IMSTimeout = 120 * time.Second
 	}
+	if s.RetryDelay == 0 {
+		s.RetryDelay = 30 * time.Second
+	}
 	if s.IPType == "" {
 		s.IPType = "ipv4v6"
 	}
@@ -92,6 +98,7 @@ func New(r *ril.RIL, st *store.Store, s Settings, audio Audio, network Network) 
 		calls:    map[string]*call{},
 		subs:     map[chan phone.Event]struct{}{},
 		pinWait:  make(chan struct{}, 1),
+		simWake:  make(chan struct{}, 1),
 		status: phone.Status{
 			Stage:        phone.StageStarting,
 			Manufacturer: s.Identity.Manufacturer,
@@ -181,9 +188,16 @@ func (s *Service) Run(ctx context.Context) error {
 	s.recoverStoredSMS()
 	go s.events(ctx)
 	go s.poll(ctx)
-	err := s.bringup(ctx)
-	if err != nil && !errors.Is(err, context.Canceled) {
+	for {
+		err := s.bringup(ctx)
+		if err == nil || ctx.Err() != nil {
+			break
+		}
 		s.stage(phone.StageFailed, err)
+		if !s.awaitRetry(ctx) {
+			break
+		}
+		s.remap(nil)
 	}
 	<-ctx.Done()
 	s.mu.Lock()
@@ -226,8 +240,44 @@ func (s *Service) wait(ctx context.Context, timeout time.Duration, check func() 
 
 var errRetry = errors.New("retry")
 
+func (s *Service) wake() {
+	select {
+	case s.simWake <- struct{}{}:
+	default:
+	}
+}
+
+func (s *Service) awaitRetry(ctx context.Context) bool {
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-s.simWake:
+		case <-time.After(s.settings.RetryDelay):
+		}
+		s.mu.Lock()
+		off := s.radioOff
+		s.mu.Unlock()
+		if !off {
+			return true
+		}
+	}
+}
+
+func (s *Service) remap(table []byte) {
+	logf := func(f string, a ...any) { log.Printf("modem: "+f, a...) }
+	mapped, err := s.ril.RemapEUICC(table, logf)
+	if err != nil {
+		logf("slot mapping: %v", err)
+	} else if mapped {
+		s.wake()
+	}
+}
+
 func (s *Service) bringup(ctx context.Context) error {
-	s.stage(phone.StageSIM, nil)
+	if s.Status().Stage != phone.StageFailed {
+		s.stage(phone.StageSIM, nil)
+	}
 	var last ril.SIMStatus
 	err := s.wait(ctx, s.settings.SIMTimeout, func() (bool, error) {
 		st, err := s.ril.SIMStatus()
@@ -576,10 +626,15 @@ func (s *Service) handle(ind sit.Indication) {
 	case sit.IndSignal:
 		v, ok := ril.LTERSRP(ind.Payload)
 		s.update(func(x *phone.Status) { x.Signal = ril.SignalPercent(v, ok) })
+	case sit.IndSlotStatus:
+		go s.remap(ind.Payload)
 	case sit.IndNetworkState, sit.IndSIMStatus:
 		go func() {
 			if st, err := s.ril.SIMStatus(); err == nil {
 				s.applySIM(st)
+				if ind.ID == sit.IndSIMStatus && st.USIMReady() {
+					s.wake()
+				}
 			}
 			if reg, err := s.ril.PSRegistration(); err == nil {
 				s.applyRegistration(reg)
@@ -997,6 +1052,12 @@ func (s *Service) SetRadio(on bool) error {
 	if err := s.ril.SetRadio(on); err != nil {
 		return err
 	}
+	s.mu.Lock()
+	s.radioOff = !on
+	s.mu.Unlock()
 	s.update(func(x *phone.Status) { x.Radio = on })
+	if on {
+		s.wake()
+	}
 	return nil
 }

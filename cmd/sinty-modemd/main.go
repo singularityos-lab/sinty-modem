@@ -54,19 +54,22 @@ func notify(state string) {
 	c.Write([]byte(state))
 }
 
-type kmsgWriter struct{ f *os.File }
+type kmsgWriter struct {
+	f    *os.File
+	name string
+}
 
 func (k kmsgWriter) Write(p []byte) (int, error) {
-	k.f.Write(append([]byte("<3>sinty-modem-stack: "), p...))
+	k.f.Write(append([]byte("<3>"+k.name+": "), p...))
 	return len(p), nil
 }
 
-func keepLog() {
+func keepLog(name string) {
 	f, err := os.OpenFile("/dev/kmsg", os.O_WRONLY, 0)
 	if err != nil {
 		return
 	}
-	log.SetOutput(io.MultiWriter(os.Stderr, kmsgWriter{f}))
+	log.SetOutput(io.MultiWriter(os.Stderr, kmsgWriter{f, name}))
 }
 
 func modem() *device.Modem {
@@ -82,7 +85,7 @@ func modem() *device.Modem {
 
 func runStack() {
 	m := modem()
-	keepLog()
+	keepLog("sinty-modem-stack")
 	latch := vendor.Latch{
 		Path:  filepath.Join(stateDir, "bringup-attempts"),
 		Build: vendor.OSBuild("/etc/os-release", "/usr/lib/os-release"),
@@ -132,7 +135,7 @@ func runStack() {
 }
 
 func runStackNS() {
-	keepLog()
+	keepLog("sinty-modem-stack")
 	m := modem()
 	if err := syscall.Mount("", "/", "", syscall.MS_REC|syscall.MS_PRIVATE, ""); err != nil {
 		log.Fatalf("stack: private mount namespace: %v", err)
@@ -171,6 +174,7 @@ func readModel() string {
 }
 
 func runService() {
+	keepLog("sinty-modem-service")
 	m := modem()
 	if !cp.WaitFor(cp.Online, 3*time.Minute) {
 		st, _ := cp.Status()

@@ -34,6 +34,7 @@ const (
 	SIMIO              = 0x0208
 	IndSIMStatus       = 0x0210
 	GetSlotStatus      = 0x024d
+	IndSlotStatus      = 0x024e
 	SetSlotMapping     = 0x0250
 	GetIMSI            = 0x0400
 	SetupDataCall      = 0x0600

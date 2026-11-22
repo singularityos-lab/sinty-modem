@@ -14,7 +14,7 @@ var names = map[uint16]string{
 	IndNetworkState: "IND_NTW_STATE_CHANGED", SetPSService: "SET_PS_SERVICE", GetPSService: "GET_PS_SERVICE",
 	IndPhysicalChannel: "IND_PHYSICAL_CHANNEL_CONFIG", SetNRMode: "SET_NR_MODE", GetNRMode: "GET_NR_MODE",
 	IndRegFailed: "IND_REG_FAILED", SetRadioPower: "SET_RADIO_POWER", GetRadioPower: "GET_RADIO_POWER",
-	IndRadioState: "IND_RADIO_STATE_CHANGED", IndPhoneReset: "IND_PHONE_RESET",
+	IndSlotStatus: "IND_SLOT_STATUS_CHANGED", IndRadioState: "IND_RADIO_STATE_CHANGED", IndPhoneReset: "IND_PHONE_RESET",
 	SetScreenState: "SET_SCREEN_STATE", IndSignal: "IND_SIGNAL_STRENGTH", SetIndFilter: "SET_IND_CMD_FILTER",
 	Dial: "AIMS_DIAL", IndCallRing: "IND_AIMS_CALL_RING", Answer: "AIMS_ANSWER", Hangup: "AIMS_HANGUP",
 	IndCallStatus: "IND_AIMS_CALL_STATUS", IndIMSRegistration: "IND_AIMS_REGISTRATION",
