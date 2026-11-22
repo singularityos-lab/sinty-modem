@@ -116,5 +116,7 @@ type Backend interface {
 	DeleteMessage(id string) error
 	SendPIN(pin string) (int, error)
 	SetRadio(on bool) error
+	SelectSlot(slot int) error
+	Restart() error
 	Subscribe() (<-chan Event, func())
 }

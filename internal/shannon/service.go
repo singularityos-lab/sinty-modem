@@ -61,6 +61,7 @@ type Service struct {
 	muted    bool
 	pinWait  chan struct{}
 	simWake  chan struct{}
+	restart  chan struct{}
 	radioOff bool
 	subs     map[chan phone.Event]struct{}
 	carrier  *apn.Carrier
@@ -99,6 +100,7 @@ func New(r *ril.RIL, st *store.Store, s Settings, audio Audio, network Network) 
 		subs:     map[chan phone.Event]struct{}{},
 		pinWait:  make(chan struct{}, 1),
 		simWake:  make(chan struct{}, 1),
+		restart:  make(chan struct{}, 1),
 		status: phone.Status{
 			Stage:        phone.StageStarting,
 			Manufacturer: s.Identity.Manufacturer,
@@ -238,7 +240,10 @@ func (s *Service) wait(ctx context.Context, timeout time.Duration, check func() 
 	}
 }
 
-var errRetry = errors.New("retry")
+var (
+	errRetry  = errors.New("retry")
+	errInCall = errors.New("a call is in progress")
+)
 
 func (s *Service) wake() {
 	select {
@@ -1040,15 +1045,52 @@ func (s *Service) SendPIN(pin string) (int, error) {
 	return left, err
 }
 
-func (s *Service) SetRadio(on bool) error {
+func (s *Service) idle() error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	for _, c := range s.calls {
-		if !on && c.State != phone.CallTerminated {
-			s.mu.Unlock()
-			return errors.New("a call is in progress")
+		if c.State != phone.CallTerminated {
+			return errInCall
 		}
 	}
+	return nil
+}
+
+func (s *Service) SelectSlot(slot int) error {
+	if err := s.idle(); err != nil {
+		return err
+	}
+	if err := ril.SelectSlot(s.ril.Client(), slot, 8*time.Second); err != nil {
+		return fmt.Errorf("select slot %d: %w", slot, err)
+	}
+	log.Printf("modem: physical slot %d put on the first line", slot)
+	s.mu.Lock()
+	s.radioOff = false
 	s.mu.Unlock()
+	s.wake()
+	return nil
+}
+
+func (s *Service) Restart() error {
+	if err := s.idle(); err != nil {
+		return err
+	}
+	log.Printf("modem: service restart requested")
+	select {
+	case s.restart <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+func (s *Service) Restarting() <-chan struct{} { return s.restart }
+
+func (s *Service) SetRadio(on bool) error {
+	if !on {
+		if err := s.idle(); err != nil {
+			return err
+		}
+	}
 	if err := s.ril.SetRadio(on); err != nil {
 		return err
 	}

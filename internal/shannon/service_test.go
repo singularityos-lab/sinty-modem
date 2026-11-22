@@ -142,3 +142,39 @@ func TestAFailedBringUpTriesTheSlotsAgain(t *testing.T) {
 	until(t, "the slots were not read again", m.mapped.Load)
 	until(t, "the eSIM was not picked up", func() bool { return s.Status().SIM.State == string(ril.SIMReady) })
 }
+
+func TestChoosingTheESIMWorksWithoutASlotTable(t *testing.T) {
+	m, s := startWithoutSIM(t, time.Hour)
+	if err := s.SelectSlot(1); err != nil {
+		t.Fatal(err)
+	}
+	if !m.mapped.Load() {
+		t.Fatal("the slot was not mapped")
+	}
+	until(t, "the eSIM was not picked up", func() bool { return s.Status().SIM.State == string(ril.SIMReady) })
+}
+
+func TestRecoveryIsRefusedDuringACall(t *testing.T) {
+	m, s := startWithoutSIM(t, time.Hour)
+	s.mu.Lock()
+	s.calls["live"] = &call{Call: phone.Call{ID: "live", State: phone.CallActive}, modemID: -1}
+	s.mu.Unlock()
+	if s.SelectSlot(1) == nil || m.mapped.Load() {
+		t.Fatal("the slot changed during a call")
+	}
+	if s.Restart() == nil {
+		t.Fatal("the service restarted during a call")
+	}
+}
+
+func TestARestartIsAskedOfTheProcess(t *testing.T) {
+	_, s := startWithoutSIM(t, time.Hour)
+	if err := s.Restart(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-s.Restarting():
+	case <-time.After(time.Second):
+		t.Fatal("nobody was told to restart")
+	}
+}

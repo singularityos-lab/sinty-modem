@@ -100,3 +100,11 @@ func TestGuardOverTheBus(t *testing.T) {
 		t.Fatalf("allowed call failed: err=%v path=%s dialed=%q", err, path, dialed)
 	}
 }
+
+func TestRecoveryAsksForDeviceControl(t *testing.T) {
+	for _, method := range []string{"SelectSlot", "Restart"} {
+		if got := actionFor(ifRecovery, method); got != actionDeviceControl {
+			t.Fatalf("%s asks for %q", method, got)
+		}
+	}
+}

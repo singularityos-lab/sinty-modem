@@ -230,15 +230,25 @@ func runService() {
 	log.Printf("sinty-modemd: serving %s", mm.Name)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+	restart := make(chan struct{})
 	go func() {
 		select {
 		case <-c.Done():
+			stop()
+		case <-svc.Restarting():
+			close(restart)
 			stop()
 		case <-ctx.Done():
 		}
 	}()
 	svc.Run(ctx)
 	network.Down("")
+	select {
+	case <-restart:
+		log.Printf("sinty-modemd: restarting on request")
+		os.Exit(1)
+	default:
+	}
 	if errors.Is(ctx.Err(), context.Canceled) {
 		select {
 		case <-c.Done():

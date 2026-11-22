@@ -27,6 +27,7 @@ const (
 	ifSim       = "org.freedesktop.ModemManager1.Sim"
 	ifCall      = "org.freedesktop.ModemManager1.Call"
 	ifSms       = "org.freedesktop.ModemManager1.Sms"
+	ifRecovery  = "dev.sinty.Modem1.Recovery"
 
 	errCore = "org.freedesktop.ModemManager1.Error.Core."
 )
@@ -288,6 +289,7 @@ func (e *Exporter) addModem() {
 	e.b.Add(modemPath, map[string]props{
 		ifModem:     e.modemProps(st),
 		ifModem3gpp: e.props3gpp(st),
+		ifRecovery:  {},
 		ifVoice:     {"Calls": dbus.MakeVariant([]dbus.ObjectPath{}), "EmergencyOnly": dbus.MakeVariant(!st.Voice)},
 		ifMessaging: {"Messages": dbus.MakeVariant([]dbus.ObjectPath{}), "SupportedStorages": dbus.MakeVariant([]uint32{0}), "DefaultStorage": dbus.MakeVariant(uint32(0))},
 	}, map[string]map[string]interface{}{
@@ -333,6 +335,20 @@ func (e *Exporter) addModem() {
 			"HangupAll": func() *dbus.Error {
 				for _, c := range b.Calls() {
 					b.Hangup(c.ID)
+				}
+				return nil
+			},
+		},
+		ifRecovery: {
+			"SelectSlot": func(slot uint32) *dbus.Error {
+				if err := b.SelectSlot(int(slot)); err != nil {
+					return fail("Failed", err)
+				}
+				return nil
+			},
+			"Restart": func() *dbus.Error {
+				if err := b.Restart(); err != nil {
+					return fail("Failed", err)
 				}
 				return nil
 			},
