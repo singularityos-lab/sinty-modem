@@ -46,6 +46,7 @@ type Status struct {
 	Manufacturer string
 	Model        string
 	Emergency    []string
+	LTEOnly      bool
 }
 
 type CallState string
@@ -127,6 +128,7 @@ type Backend interface {
 	ChangePIN(old, next string) (int, error)
 	SearchNetworks() ([]Network, error)
 	SelectNetwork(code string) error
+	SetLTEOnly(on bool) error
 	SetRadio(on bool) error
 	SelectSlot(slot int) error
 	Restart() error

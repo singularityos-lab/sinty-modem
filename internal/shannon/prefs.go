@@ -20,6 +20,7 @@ type prefs struct {
 	Data    bool   `json:"data"`
 	Roaming bool   `json:"roaming"`
 	APN     string `json:"apn"`
+	LTEOnly bool   `json:"lte_only"`
 }
 
 func loadPrefs(path string) prefs {
@@ -84,6 +85,20 @@ func (s *Service) SetRoaming(on bool) error {
 		return err
 	}
 	return s.syncData()
+}
+
+func (s *Service) SetLTEOnly(on bool) error {
+	if err := s.idle(); err != nil {
+		return err
+	}
+	if err := s.ril.SetLTEOnly(on); err != nil {
+		return err
+	}
+	if err := s.editPrefs(func(p *prefs) { p.LTEOnly = on }); err != nil {
+		return err
+	}
+	s.update(func(x *phone.Status) { x.LTEOnly = on })
+	return nil
 }
 
 func (s *Service) SetAPN(name string) error {

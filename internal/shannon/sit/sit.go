@@ -62,6 +62,7 @@ const (
 	SetNRMode           = 0x0748
 	GetNRMode           = 0x0749
 	IndRegFailed        = 0x074a
+	SetNetworkTypes     = 0x074f
 	SetRadioPower       = 0x0800
 	GetRadioPower       = 0x0801
 	IndRadioState       = 0x0802
@@ -98,6 +99,7 @@ var allowed = map[uint16]bool{
 	SIMIO: true, GetSlotStatus: true, SetSlotMapping: true,
 	OpenChannel: true, TransmitAPDU: true, CloseChannel: true, GetIMEI: true,
 	SelectNetworkAuto: true, SelectNetworkManual: true, QueryNetworks: true, ChangePIN: true,
+	SetNetworkTypes: true,
 }
 
 var ErrRefused = errors.New("request outside the allow-list")

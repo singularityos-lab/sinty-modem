@@ -258,8 +258,8 @@ func (e *Exporter) modemProps(st phone.Status) props {
 		}{uint32(st.Signal), true}),
 		"OwnNumbers":          dbus.MakeVariant([]string{}),
 		"PowerState":          dbus.MakeVariant(powerState(st)),
-		"SupportedModes":      dbus.MakeVariant([]struct{ A, B uint32 }{{1<<4 | 1<<3 | 1<<2, 1 << 4}}),
-		"CurrentModes":        dbus.MakeVariant(struct{ A, B uint32 }{1<<4 | 1<<3 | 1<<2, 1 << 4}),
+		"SupportedModes":      dbus.MakeVariant([]modes{modesAutomatic, modesLTEOnly}),
+		"CurrentModes":        dbus.MakeVariant(currentModes(st.LTEOnly)),
 		"SupportedBands":      dbus.MakeVariant([]uint32{256}),
 		"CurrentBands":        dbus.MakeVariant([]uint32{256}),
 		"SupportedIpFamilies": dbus.MakeVariant(uint32(7)),
@@ -319,8 +319,17 @@ func (e *Exporter) addModem() {
 				return nil
 			},
 			"SetCurrentCapabilities": func(uint32) *dbus.Error { return fail("Unsupported", errors.New("not supported")) },
-			"SetCurrentModes":        func(struct{ A, B uint32 }) *dbus.Error { return fail("Unsupported", errors.New("not supported")) },
-			"SetCurrentBands":        func([]uint32) *dbus.Error { return fail("Unsupported", errors.New("not supported")) },
+			"SetCurrentModes": func(m modes) *dbus.Error {
+				on, ok := lteOnlyMode(m)
+				if !ok {
+					return fail("Unsupported", errors.New("not a supported mode combination"))
+				}
+				if err := b.SetLTEOnly(on); err != nil {
+					return fail("Failed", err)
+				}
+				return nil
+			},
+			"SetCurrentBands": func([]uint32) *dbus.Error { return fail("Unsupported", errors.New("not supported")) },
 			"Command": func(string, uint32) (string, *dbus.Error) {
 				return "", fail("Unauthorized", errors.New("raw commands are not exposed"))
 			},

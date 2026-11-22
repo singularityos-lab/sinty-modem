@@ -389,6 +389,15 @@ func (s *Service) bringup(ctx context.Context) error {
 			return fmt.Errorf("data profile: %w", err)
 		}
 	}
+	s.mu.Lock()
+	lteOnly := s.prefs.LTEOnly
+	s.mu.Unlock()
+	s.update(func(x *phone.Status) { x.LTEOnly = lteOnly })
+	if lteOnly {
+		if err := s.ril.SetLTEOnly(true); err != nil {
+			log.Printf("modem: network type: %v", err)
+		}
+	}
 	nrAfter := false
 	if !s.settings.AllowNR {
 		if err := s.ril.SetNRMode(0); err != nil {
