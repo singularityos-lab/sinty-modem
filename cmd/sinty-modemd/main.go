@@ -167,6 +167,13 @@ func runStackNS() {
 	}
 }
 
+func line(s ril.Slot) int {
+	if s.Name == "esim" {
+		return 1
+	}
+	return 0
+}
+
 func readModel() string {
 	b, err := os.ReadFile("/proc/device-tree/model")
 	if err != nil {
@@ -233,6 +240,8 @@ func runService() {
 		Identity:  ril.Identity{Manufacturer: maker, Model: model, OS: "Sinty OS"},
 		SlotFile:  slotFile,
 		Embedded:  slot.Name == "esim",
+		Lines:     []string{m.IPC, m.ESIMIPC},
+		Line:      line(slot),
 		PrefsFile: filepath.Join(stateDir, "network.json"),
 		Usage:     usage.New(filepath.Join(stateDir, "usage.json"), network.Device).Month,
 	}, voice, network)

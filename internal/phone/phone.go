@@ -134,6 +134,7 @@ type Backend interface {
 	SelectSlot(slot int) error
 	SetStandby(dual bool) error
 	SetDataLine(line int) error
+	Request(line int, id uint16, payload []byte) (byte, []byte, error)
 	Restart() error
 	Subscribe() (<-chan Event, func())
 }

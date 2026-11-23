@@ -35,6 +35,8 @@ type Settings struct {
 	RetryDelay  time.Duration
 	SlotFile    string
 	Embedded    bool
+	Lines       []string
+	Line        int
 	PrefsFile   string
 	Usage       func() (rx, tx uint64)
 }
@@ -1180,6 +1182,32 @@ func (s *Service) SetDataLine(line int) error {
 	log.Printf("modem: mobile data on line %d", line)
 	s.wake()
 	return nil
+}
+
+func (s *Service) Request(line int, id uint16, payload []byte) (byte, []byte, error) {
+	if line < 0 || line >= len(s.settings.Lines) || s.settings.Lines[line] == "" {
+		return 0, nil, fmt.Errorf("no line %d", line)
+	}
+	c := s.ril.Client()
+	if line != s.settings.Line {
+		other, err := sit.Open(s.settings.Lines[line])
+		if err != nil {
+			return 0, nil, fmt.Errorf("line %d: %w", line, err)
+		}
+		defer other.Close()
+		c = other
+	}
+	reply, err := c.Raw(id, payload, ril.MappingTimeout)
+	var me *sit.ModemError
+	if errors.As(err, &me) {
+		log.Printf("modem: developer request %s on line %d: error %d", sit.Name(id), line, me.Code)
+		return me.Code, me.Reply, nil
+	}
+	if err != nil {
+		return 0, nil, err
+	}
+	log.Printf("modem: developer request %s on line %d: done", sit.Name(id), line)
+	return 0, reply, nil
 }
 
 func (s *Service) Restart() error {

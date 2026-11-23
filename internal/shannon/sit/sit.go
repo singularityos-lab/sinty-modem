@@ -281,6 +281,10 @@ func (c *Client) Request(id uint16, payload []byte, timeout time.Duration) ([]by
 			return nil, err
 		}
 	}
+	return c.Raw(id, payload, timeout)
+}
+
+func (c *Client) Raw(id uint16, payload []byte, timeout time.Duration) ([]byte, error) {
 	if requestHeader+len(payload) > maxFrame {
 		return nil, errors.New("SIT request too large")
 	}

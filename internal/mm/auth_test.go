@@ -117,7 +117,7 @@ func TestGuardOverTheBus(t *testing.T) {
 }
 
 func TestRecoveryAsksForDeviceControl(t *testing.T) {
-	for _, method := range []string{"SelectSlot", "SetStandby", "SetDataLine", "Restart"} {
+	for _, method := range []string{"SelectSlot", "SetStandby", "SetDataLine", "Request", "Restart"} {
 		if got := actionFor(ifRecovery, method); got != actionDeviceControl {
 			t.Fatalf("%s asks for %q", method, got)
 		}

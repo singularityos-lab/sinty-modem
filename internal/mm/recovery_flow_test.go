@@ -2,7 +2,9 @@ package mm
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 	"sync"
@@ -85,6 +87,11 @@ func (m *recordingModem) SetDataLine(line int) error {
 	return nil
 }
 
+func (m *recordingModem) Request(line int, id uint16, payload []byte) (byte, []byte, error) {
+	m.note(fmt.Sprintf("request %d 0x%04x %x", line, id, payload))
+	return 6, []byte{0xab}, nil
+}
+
 func (m *recordingModem) Restart() error { m.note("service restart"); return nil }
 
 type recordingStack struct{ m *recordingModem }
@@ -152,11 +159,16 @@ func TestDeveloperRecoveryActionsReachTheModem(t *testing.T) {
 			t.Fatalf("%s: %v", c.method, err)
 		}
 	}
+	var code byte
+	var reply []byte
+	if err := recovery.Call(ifRecovery+".Request", 0, uint32(1), uint16(0x093f), []byte{1}).Store(&code, &reply); err != nil || code != 6 || !bytes.Equal(reply, []byte{0xab}) {
+		t.Fatalf("raw request = %d %x, %v", code, reply, err)
+	}
 	var log string
 	if err := stack.Call(ifStack+".Diagnostics", 0).Store(&log); err != nil || log != "stack log" {
 		t.Fatalf("diagnostics = %q, %v", log, err)
 	}
-	want := "modem restart,service restart,slot 1,slot 0,dual standby,data line 1,diagnostics"
+	want := "modem restart,service restart,slot 1,slot 0,dual standby,data line 1,request 1 0x093f 01,diagnostics"
 	if got := modem.seen(); got != want {
 		t.Fatalf("modem saw %s, want %s", got, want)
 	}
@@ -171,7 +183,7 @@ func TestDeveloperRecoveryActionsReachTheModem(t *testing.T) {
 	if err := client.BusObject().Call("org.freedesktop.DBus.GetConnectionUnixUser", 0, client.Names()[0]).Store(&uid); err != nil {
 		t.Fatal(err)
 	}
-	if asks := 7; uid == 0 && len(grant.actions) != 0 || uid != 0 && len(grant.actions) != asks {
+	if asks := 8; uid == 0 && len(grant.actions) != 0 || uid != 0 && len(grant.actions) != asks {
 		t.Fatalf("polkit asked %d times for uid %d", len(grant.actions), uid)
 	}
 

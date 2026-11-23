@@ -388,6 +388,13 @@ func (e *Exporter) addModem() {
 				}
 				return nil
 			},
+			"Request": func(line uint32, id uint16, payload []byte) (byte, []byte, *dbus.Error) {
+				code, reply, err := b.Request(int(line), id, payload)
+				if err != nil {
+					return 0, nil, fail("Failed", err)
+				}
+				return code, reply, nil
+			},
 			"Restart": func() *dbus.Error {
 				if err := b.Restart(); err != nil {
 					return fail("Failed", err)
