@@ -191,6 +191,7 @@ func runService() {
 	}
 	logf := func(f string, a ...any) { log.Printf("sinty-modemd: "+f, a...) }
 	slotFile := filepath.Join(stateDir, "slot")
+	remapped, euiccFirst := false, false
 	if rc, err := sit.Open(m.IPC); err != nil {
 		logf("slot status: %v", err)
 	} else {
@@ -202,13 +203,16 @@ func runService() {
 			}
 		}
 		if !chosen {
-			if err := ril.MapEUICC(rc, 30*time.Second, logf); err != nil {
+			mapped, err := ril.MapEUICC(rc, 30*time.Second, logf)
+			remapped = mapped
+			if err != nil {
 				logf("slot mapping: %v", err)
 				if err := ril.ServeEUICCLine(rc, filepath.Join(stateDir, "standby"), logf); err != nil {
 					logf("eSIM line: %v", err)
 				}
 			}
 		}
+		euiccFirst = ril.EUICCOnFirstLine(rc)
 		rc.Close()
 	}
 	slots := []ril.Slot{{Name: "sim", Path: m.IPC}, {Name: "esim", Path: m.ESIMIPC}}
@@ -239,7 +243,8 @@ func runService() {
 	svc := shannon.New(ril.New(c, m.Router), msgs, shannon.Settings{
 		Identity:  ril.Identity{Manufacturer: maker, Model: model, OS: "Sinty OS"},
 		SlotFile:  slotFile,
-		Embedded:  slot.Name == "esim",
+		Embedded:  slot.Name == "esim" || (slot.Name == "sim" && euiccFirst),
+		CycleLine: remapped,
 		Lines:     []string{m.IPC, m.ESIMIPC},
 		Line:      line(slot),
 		PrefsFile: filepath.Join(stateDir, "network.json"),

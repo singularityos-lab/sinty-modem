@@ -120,9 +120,11 @@ func mappingPayload(ports bool, mapping []SlotPort) []byte {
 	p := make([]byte, 1+maxSlots*width)
 	p[0] = byte(len(mapping))
 	for l, m := range mapping {
-		p[1+l*width] = byte(m.Slot)
 		if ports {
-			p[2+l*width] = byte(m.Port)
+			p[1+l*width] = byte(m.Port)
+			p[2+l*width] = byte(m.Slot)
+		} else {
+			p[1+l*width] = byte(m.Slot)
 		}
 	}
 	return p
@@ -177,7 +179,7 @@ func (r *RIL) RemapEUICC(table []byte, logf func(string, ...any)) (bool, error) 
 	return mapSlots(r.c, st, logf)
 }
 
-func MapEUICC(c *sit.Client, wait time.Duration, logf func(string, ...any)) error {
+func MapEUICC(c *sit.Client, wait time.Duration, logf func(string, ...any)) (bool, error) {
 	deadline := time.Now().Add(wait)
 	var st SlotStatus
 	reported := ""
@@ -187,7 +189,7 @@ func MapEUICC(c *sit.Client, wait time.Duration, logf func(string, ...any)) erro
 			break
 		}
 		if c.Err() != nil || time.Now().After(deadline) {
-			return err
+			return false, err
 		}
 		if msg := err.Error(); msg != reported {
 			logf("waiting for the slot table: %v", err)
@@ -196,16 +198,25 @@ func MapEUICC(c *sit.Client, wait time.Duration, logf func(string, ...any)) erro
 		time.Sleep(time.Second)
 	}
 	if mapped, err := mapSlots(c, st, logf); err != nil || !mapped {
-		return err
+		return false, err
 	}
 	deadline = time.Now().Add(wait)
 	for time.Now().Before(deadline) {
 		if p, err := c.Request(sit.SIMStatus, nil, 8*time.Second); err == nil {
 			if st, err := ParseSIMStatus(p); err == nil && st.Card == CardPresent {
-				return nil
+				return true, nil
 			}
 		}
 		time.Sleep(time.Second)
 	}
-	return errors.New("the eUICC did not answer on its logical slot")
+	return true, errors.New("the eUICC did not answer on its logical slot")
+}
+
+func EUICCOnFirstLine(c *sit.Client) bool {
+	st, err := readSlots(c)
+	if err != nil {
+		return false
+	}
+	line, ok := EUICCLine(st)
+	return ok && line == 0
 }

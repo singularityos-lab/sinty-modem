@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/singularityos-lab/sinty-modem/internal/apn"
@@ -35,6 +36,7 @@ type Settings struct {
 	RetryDelay  time.Duration
 	SlotFile    string
 	Embedded    bool
+	CycleLine   bool
 	Lines       []string
 	Line        int
 	PrefsFile   string
@@ -57,12 +59,15 @@ type call struct {
 	modemID int
 }
 
+const lineCycleDelay = 5 * time.Second
+
 type Service struct {
-	ril      *ril.RIL
-	store    *store.Store
-	settings Settings
-	audio    Audio
-	net      Network
+	cycleLine atomic.Bool
+	ril       *ril.RIL
+	store     *store.Store
+	settings  Settings
+	audio     Audio
+	net       Network
 
 	dataMu   sync.Mutex
 	found    []ril.Network
@@ -104,7 +109,7 @@ func New(r *ril.RIL, st *store.Store, s Settings, audio Audio, network Network) 
 		s.APNDatabase = apn.Database
 	}
 	saved := loadPrefs(s.PrefsFile)
-	return &Service{
+	svc := &Service{
 		ril:      r,
 		store:    st,
 		settings: s,
@@ -126,6 +131,8 @@ func New(r *ril.RIL, st *store.Store, s Settings, audio Audio, network Network) 
 			Emergency:    []string{"112", "911"},
 		},
 	}
+	svc.cycleLine.Store(s.CycleLine)
+	return svc
 }
 
 func (s *Service) SetFirmware(v string) {
@@ -322,6 +329,7 @@ func (s *Service) remap(table []byte) {
 	if err != nil {
 		logf("slot mapping: %v", err)
 	} else if mapped {
+		s.cycleLine.Store(true)
 		s.wake()
 	}
 }
@@ -436,6 +444,12 @@ func (s *Service) bringup(ctx context.Context) error {
 				log.Printf("modem: NR mode after radio on: %v", err)
 			}
 		}
+	}
+	if s.settings.Embedded && alreadyOn && s.cycleLine.Swap(false) {
+		if err := s.ril.SetLinePower(false); err != nil {
+			log.Printf("modem: radio off on the moved line: %v", err)
+		}
+		time.Sleep(lineCycleDelay)
 	}
 	if s.settings.Embedded {
 		if err := s.ril.SetLinePower(true); err != nil {

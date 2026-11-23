@@ -69,7 +69,7 @@ func TestMappingWaitsForTheModemToListItsSlots(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
-	if err := MapEUICC(c, 10*time.Second, t.Logf); err != nil {
+	if _, err := MapEUICC(c, 10*time.Second, t.Logf); err != nil {
 		t.Fatal(err)
 	}
 	if !mapped.Load() {
@@ -84,7 +84,7 @@ func TestMappingWaitsForASlowModem(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
-	if err := MapEUICC(c, 10*time.Second, t.Logf); err != nil {
+	if _, err := MapEUICC(c, 10*time.Second, t.Logf); err != nil {
 		t.Fatal(err)
 	}
 	if !mapped.Load() {

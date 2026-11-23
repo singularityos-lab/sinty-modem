@@ -91,7 +91,7 @@ func TestLinesAreLeftAloneUnlessTheFirstIsOnAnEmptySlot(t *testing.T) {
 
 func TestMappingPayloadsMatchTheStockRIL(t *testing.T) {
 	m := []SlotPort{{Slot: 1}, {Slot: 0, Port: 1}}
-	if p := mappingPayload(true, m); !bytes.Equal(p, []byte{2, 1, 0, 0, 1, 0, 0, 0, 0}) {
+	if p := mappingPayload(true, m); !bytes.Equal(p, []byte{2, 0, 1, 1, 0, 0, 0, 0, 0}) {
 		t.Fatalf("port payload % x", p)
 	}
 	if p := mappingPayload(false, m); !bytes.Equal(p, []byte{2, 1, 0, 0, 0}) {

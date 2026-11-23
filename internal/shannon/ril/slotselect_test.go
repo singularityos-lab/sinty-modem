@@ -55,9 +55,9 @@ func TestASlotIsSelectedWithoutATable(t *testing.T) {
 		slot    int
 		accepts []byte
 	}{
-		"eSIM on two lines":    {1, []byte{2, 1, 0, 0, 0, 0, 0, 0, 0}},
-		"physical on two":      {0, []byte{2, 0, 0, 1, 0, 0, 0, 0, 0}},
-		"eSIM on one line":     {1, []byte{1, 1, 0, 0, 0, 0, 0, 0, 0}},
+		"eSIM on two lines":    {1, []byte{2, 0, 1, 0, 0, 0, 0, 0, 0}},
+		"physical on two":      {0, []byte{2, 0, 0, 0, 1, 0, 0, 0, 0}},
+		"eSIM on one line":     {1, []byte{1, 0, 1, 0, 0, 0, 0, 0, 0}},
 		"eSIM on a legacy RIL": {1, []byte{2, 1, 0, 0, 0}},
 	} {
 		if err := SelectSlot(mappingModem(t, x.accepts), x.slot, time.Second); err != nil {
