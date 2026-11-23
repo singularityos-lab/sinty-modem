@@ -197,6 +197,9 @@ func runService() {
 		if !chosen {
 			if err := ril.MapEUICC(rc, 30*time.Second, logf); err != nil {
 				logf("slot mapping: %v", err)
+				if err := ril.ServeEUICCLine(rc, filepath.Join(stateDir, "standby"), logf); err != nil {
+					logf("eSIM line: %v", err)
+				}
 			}
 		}
 		rc.Close()

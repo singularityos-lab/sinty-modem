@@ -58,6 +58,7 @@ const (
 	IndNetworkState     = 0x070e
 	SetPSService        = 0x0710
 	GetPSService        = 0x0711
+	SetDataLine         = 0x0740
 	IndPhysicalChannel  = 0x0742
 	SetNRMode           = 0x0748
 	GetNRMode           = 0x0749
@@ -68,6 +69,7 @@ const (
 	IndRadioState       = 0x0802
 	IndPhoneReset       = 0x0804
 	SetScreenState      = 0x0902
+	SetStandby          = 0x093f
 	IndSignal           = 0x0906
 	SetIndFilter        = 0x0928
 	Dial                = 0x0d00
@@ -99,7 +101,7 @@ var allowed = map[uint16]bool{
 	SIMIO: true, GetSlotStatus: true, SetSlotMapping: true,
 	OpenChannel: true, TransmitAPDU: true, CloseChannel: true, GetIMEI: true,
 	SelectNetworkAuto: true, SelectNetworkManual: true, QueryNetworks: true, ChangePIN: true,
-	SetNetworkTypes: true,
+	SetNetworkTypes: true, SetRadioPower: true, SetStandby: true, SetDataLine: true,
 }
 
 var ErrRefused = errors.New("request outside the allow-list")

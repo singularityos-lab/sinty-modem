@@ -376,6 +376,18 @@ func (e *Exporter) addModem() {
 				}
 				return nil
 			},
+			"SetStandby": func(dual bool) *dbus.Error {
+				if err := b.SetStandby(dual); err != nil {
+					return fail("Failed", err)
+				}
+				return nil
+			},
+			"SetDataLine": func(line uint32) *dbus.Error {
+				if err := b.SetDataLine(int(line)); err != nil {
+					return fail("Failed", err)
+				}
+				return nil
+			},
 			"Restart": func() *dbus.Error {
 				if err := b.Restart(); err != nil {
 					return fail("Failed", err)

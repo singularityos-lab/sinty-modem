@@ -71,6 +71,20 @@ func (m *recordingModem) SelectSlot(slot int) error {
 	return nil
 }
 
+func (m *recordingModem) SetStandby(dual bool) error {
+	if dual {
+		m.note("dual standby")
+	} else {
+		m.note("single standby")
+	}
+	return nil
+}
+
+func (m *recordingModem) SetDataLine(line int) error {
+	m.note("data line " + string(rune('0'+line)))
+	return nil
+}
+
 func (m *recordingModem) Restart() error { m.note("service restart"); return nil }
 
 type recordingStack struct{ m *recordingModem }
@@ -130,6 +144,8 @@ func TestDeveloperRecoveryActionsReachTheModem(t *testing.T) {
 		{recovery, ifRecovery + ".Restart", nil},
 		{recovery, ifRecovery + ".SelectSlot", []interface{}{uint32(1)}},
 		{recovery, ifRecovery + ".SelectSlot", []interface{}{uint32(0)}},
+		{recovery, ifRecovery + ".SetStandby", []interface{}{true}},
+		{recovery, ifRecovery + ".SetDataLine", []interface{}{uint32(1)}},
 	}
 	for _, c := range calls {
 		if err := c.obj.Call(c.method, 0, c.args...).Err; err != nil {
@@ -140,7 +156,7 @@ func TestDeveloperRecoveryActionsReachTheModem(t *testing.T) {
 	if err := stack.Call(ifStack+".Diagnostics", 0).Store(&log); err != nil || log != "stack log" {
 		t.Fatalf("diagnostics = %q, %v", log, err)
 	}
-	want := "modem restart,service restart,slot 1,slot 0,diagnostics"
+	want := "modem restart,service restart,slot 1,slot 0,dual standby,data line 1,diagnostics"
 	if got := modem.seen(); got != want {
 		t.Fatalf("modem saw %s, want %s", got, want)
 	}
@@ -155,7 +171,7 @@ func TestDeveloperRecoveryActionsReachTheModem(t *testing.T) {
 	if err := client.BusObject().Call("org.freedesktop.DBus.GetConnectionUnixUser", 0, client.Names()[0]).Store(&uid); err != nil {
 		t.Fatal(err)
 	}
-	if asks := 5; uid == 0 && len(grant.actions) != 0 || uid != 0 && len(grant.actions) != asks {
+	if asks := 7; uid == 0 && len(grant.actions) != 0 || uid != 0 && len(grant.actions) != asks {
 		t.Fatalf("polkit asked %d times for uid %d", len(grant.actions), uid)
 	}
 

@@ -435,6 +435,11 @@ func (s *Service) bringup(ctx context.Context) error {
 			}
 		}
 	}
+	if s.settings.Embedded {
+		if err := s.ril.SetLinePower(true); err != nil {
+			log.Printf("modem: radio on the eSIM line: %v", err)
+		}
+	}
 	s.update(func(x *phone.Status) { x.Radio = true })
 
 	s.stage(phone.StageRegistering, nil)
@@ -1151,6 +1156,29 @@ func (s *Service) SelectSlot(slot int) error {
 	s.wantRadio(true)
 	s.wake()
 	s.reload()
+	return nil
+}
+
+func (s *Service) SetStandby(dual bool) error {
+	if err := s.idle(); err != nil {
+		return err
+	}
+	if err := ril.SetStandby(s.ril.Client(), dual, ril.MappingTimeout); err != nil {
+		return fmt.Errorf("standby: %w", err)
+	}
+	log.Printf("modem: dual standby %t", dual)
+	return nil
+}
+
+func (s *Service) SetDataLine(line int) error {
+	if err := s.idle(); err != nil {
+		return err
+	}
+	if err := ril.SetDataLine(s.ril.Client(), line, ril.MappingTimeout); err != nil {
+		return fmt.Errorf("data line: %w", err)
+	}
+	log.Printf("modem: mobile data on line %d", line)
+	s.wake()
 	return nil
 }
 
